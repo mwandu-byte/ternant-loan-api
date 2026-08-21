@@ -226,8 +226,8 @@ jobs:
         env:
           # Repo Variable (Settings → Actions → Variables), not a secret —
           # only needs to change if APP_PORT in the VPS .env differs from
-          # docker-compose.prod.yml's default of 8080.
-          APP_PORT: ${{ vars.APP_PORT || '8080' }}
+          # docker-compose.prod.yml's default of 9090.
+          APP_PORT: ${{ vars.APP_PORT || '9090' }}
         run: |
           set -e
 

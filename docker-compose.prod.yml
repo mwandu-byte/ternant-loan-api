@@ -37,12 +37,12 @@ services:
     nginx:
         image: ghcr.io/mwandu-byte/loan-management-api-nginx:${IMAGE_TAG:-latest}
         restart: unless-stopped
-        # Defaults to 8080 so it won't silently fight an existing web
-        # server/reverse-proxy already bound to 80/443 on the VPS. Point
-        # your reverse proxy (or DNS, if this box is dedicated) at
-        # APP_PORT, or set APP_PORT=80 in the VPS .env if it's clear to.
+        # Defaults to 9090 so it won't silently fight an existing web
+        # server/reverse-proxy already bound to 80/443 (or 8080) on the
+        # VPS. Point your reverse proxy (or DNS, if this box is dedicated)
+        # at APP_PORT, or set APP_PORT=80 in the VPS .env if it's clear to.
         ports:
-            - "${APP_PORT:-8080}:80"
+            - "${APP_PORT:-9090}:80"
         depends_on:
             - app
 
