@@ -1,0 +1,255 @@
+name: NAALI PUB CI/CD
+
+on:
+  push:
+    branches:
+      - dev
+
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build and Deploy NAALI PUB
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ============================================================
+      # 1. CHECKOUT
+      # ============================================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      # ============================================================
+      # 2. SETUP PHP
+      # ============================================================
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, bcmath, pdo, pdo_mysql, xml, curl, gd, zip
+          tools: composer:v2
+          coverage: none
+
+
+      # ============================================================
+      # 3. SETUP NODE
+      # ============================================================
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+
+      # ============================================================
+      # 4. INSTALL PHP DEPENDENCIES
+      # ============================================================
+      - name: Install Composer dependencies
+        run: |
+          set -e
+
+          composer install \
+            --no-dev \
+            --prefer-dist \
+            --optimize-autoloader \
+            --no-interaction
+
+
+      # ============================================================
+      # 5. INSTALL NODE DEPENDENCIES
+      # ============================================================
+      - name: Install Node dependencies
+        run: |
+          set -e
+
+          npm ci
+
+
+      # ============================================================
+      # 6. BUILD FRONTEND
+      # ============================================================
+      - name: Build frontend
+        run: |
+          set -e
+
+          npm run build
+
+
+      # ============================================================
+      # 7. SETUP SSH
+      # ============================================================
+      - name: Setup SSH
+        run: |
+          set -e
+
+          mkdir -p ~/.ssh
+
+          echo "${{ secrets.VPS_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+
+          chmod 600 ~/.ssh/id_rsa
+
+          ssh-keyscan \
+            -p "${{ secrets.VPS_PORT }}" \
+            "${{ secrets.VPS_HOST }}" \
+            >> ~/.ssh/known_hosts
+
+          chmod 644 ~/.ssh/known_hosts
+
+
+      # ============================================================
+      # 8. DEPLOY APPLICATION
+      # ============================================================
+      - name: Deploy application
+        run: |
+          set -e
+
+          SERVER="${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}"
+          PORT="${{ secrets.VPS_PORT }}"
+          DEPLOY_PATH="/var/www/Projects/NAALI-PUB"
+
+          echo "========================================="
+          echo "Deploying NAALI PUB"
+          echo "Server: ${SERVER}"
+          echo "Path: ${DEPLOY_PATH}"
+          echo "========================================="
+
+
+          # --------------------------------------------------------
+          # Sync application files
+          # --------------------------------------------------------
+
+          echo "Syncing application files..."
+
+          rsync -avz --delete \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude=".env" \
+            --exclude="node_modules" \
+            --exclude="vendor" \
+            --exclude="storage" \
+            --exclude="bootstrap/cache" \
+            -e "ssh -p ${PORT}" \
+            ./ \
+            "${SERVER}:${DEPLOY_PATH}"
+
+
+          # --------------------------------------------------------
+          # Execute deployment commands on server
+          # --------------------------------------------------------
+
+          ssh -p "${PORT}" "${SERVER}" << 'EOF'
+
+            set -e
+
+            cd /var/www/Projects/NAALI-PUB
+
+            echo "========================================="
+            echo "Starting NAALI PUB deployment"
+            echo "========================================="
+
+
+            # ======================================================
+            # Verify environment
+            # ======================================================
+
+            echo "Checking environment..."
+
+            if [ ! -f .env ]; then
+                echo "ERROR: .env file does not exist."
+                exit 1
+            fi
+
+            echo ".env file found."
+
+
+            # ======================================================
+            # Install PHP dependencies
+            # ======================================================
+
+            echo "========================================="
+            echo "Installing Composer dependencies..."
+            echo "========================================="
+
+            composer install \
+              --no-dev \
+              --prefer-dist \
+              --optimize-autoloader \
+              --no-interaction
+
+
+            # ======================================================
+            # Install Node dependencies
+            # ======================================================
+
+            echo "========================================="
+            echo "Installing Node dependencies..."
+            echo "========================================="
+
+            npm ci
+
+
+            # ======================================================
+            # Build frontend
+            # ======================================================
+
+            echo "========================================="
+            echo "Building frontend..."
+            echo "========================================="
+
+            npm run build
+
+
+            # ======================================================
+            # Laravel migrations
+            # ======================================================
+
+            echo "========================================="
+            echo "Running database migrations..."
+            echo "========================================="
+
+            php artisan migrate --force
+
+
+            # ======================================================
+            # Clear Laravel caches
+            # ======================================================
+
+            echo "========================================="
+            echo "Clearing Laravel caches..."
+            echo "========================================="
+
+            php artisan optimize:clear
+
+
+            # ======================================================
+            # Optimize Laravel
+            # ======================================================
+
+            echo "========================================="
+            echo "Optimizing Laravel..."
+            echo "========================================="
+
+            php artisan optimize
+
+
+            # ======================================================
+            # Deployment completed
+            # ======================================================
+
+            echo "========================================="
+            echo "NAALI PUB deployment completed successfully"
+            echo "========================================="
+
+          EOF
+
+
+      # ============================================================
+      # 9. DEPLOYMENT SUCCESS
+      # ============================================================
+      - name: Deployment successful
+        run: |
+          echo "========================================="
+          echo "NAALI PUB DEPLOYMENT SUCCESSFUL"
+          echo "========================================="
