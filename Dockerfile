@@ -23,7 +23,7 @@ RUN composer dump-autoload --optimize --no-dev --classmap-authoritative
 # =============================================================================
 # Stage 2: Runtime image (php-fpm) — the application container
 # =============================================================================
-FROM php:8.3-fpm-alpine AS app
+FROM php:8.4-fpm-alpine AS app
 
 RUN apk add --no-cache --virtual .build-deps \
         $PHPIZE_DEPS \
