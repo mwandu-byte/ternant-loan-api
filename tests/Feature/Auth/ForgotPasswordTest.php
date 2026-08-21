@@ -84,34 +84,33 @@ class ForgotPasswordTest extends TestCase
             ->assertJson(['success' => false]);
     }
 
-    public function test_new_request_invalidates_the_previous_reset_token(): void
+    public function test_new_request_invalidates_the_previous_reset_otp(): void
     {
-        config(['auth.passwords.users.throttle' => 0]);
         Notification::fake();
 
         $user = User::factory()->create();
 
         $this->postJson('/api/v1/auth/forgot-password', ['email' => $user->email]);
 
-        $firstToken = null;
-        Notification::assertSentTo($user, ResetPasswordNotification::class, function ($notification) use (&$firstToken) {
-            $firstToken = $notification->token;
+        $firstOtp = null;
+        Notification::assertSentTo($user, ResetPasswordNotification::class, function ($notification) use (&$firstOtp) {
+            $firstOtp = $notification->otp;
 
             return true;
         });
 
         $this->postJson('/api/v1/auth/forgot-password', ['email' => $user->email]);
 
-        $secondToken = collect(Notification::sent($user, ResetPasswordNotification::class))
-            ->pluck('token')
+        $secondOtp = collect(Notification::sent($user, ResetPasswordNotification::class))
+            ->pluck('otp')
             ->last();
 
-        $this->assertNotSame($firstToken, $secondToken);
+        $this->assertNotSame($firstOtp, $secondOtp);
         $this->assertDatabaseCount('password_reset_tokens', 1);
 
         $this->postJson('/api/v1/auth/reset-password', [
             'email' => $user->email,
-            'token' => $firstToken,
+            'otp' => $firstOtp,
             'password' => 'NewStrongPassword123!',
             'password_confirmation' => 'NewStrongPassword123!',
         ])->assertStatus(422);

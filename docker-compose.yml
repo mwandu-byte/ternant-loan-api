@@ -1,0 +1,72 @@
+# Local development stack. Source code is bind-mounted into both `app` and
+# `nginx` so edits show up immediately — no rebuild needed for PHP changes.
+# `docker compose up -d` then `docker compose exec app php artisan migrate --seed`.
+name: loan-management-api
+
+services:
+    app:
+        build:
+            context: .
+            target: app
+        image: loan-management-api-app:local
+        restart: unless-stopped
+        volumes:
+            - .:/var/www/html
+        environment:
+            APP_ENV: local
+            DB_HOST: mysql
+            MAIL_MAILER: smtp
+            MAIL_HOST: mailhog
+            MAIL_PORT: 1025
+        env_file:
+            - .env
+        # Entrypoint caches config/routes for production; local dev wants
+        # live changes instead, so skip straight to php-fpm.
+        entrypoint: []
+        command: php-fpm
+        depends_on:
+            mysql:
+                condition: service_healthy
+
+    nginx:
+        build:
+            context: .
+            target: nginx
+        image: loan-management-api-nginx:local
+        restart: unless-stopped
+        ports:
+            - "${APP_PORT:-8000}:80"
+        volumes:
+            - ./public:/var/www/html/public
+        depends_on:
+            - app
+
+    mysql:
+        image: mysql:8.0
+        restart: unless-stopped
+        environment:
+            MYSQL_DATABASE: ${DB_DATABASE:-loan_management}
+            MYSQL_USER: ${DB_USERNAME:-loan_management}
+            MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+            MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
+        ports:
+            - "3306:3306"
+        volumes:
+            - mysql-data:/var/lib/mysql
+        healthcheck:
+            test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
+    # Catches every outgoing email locally (including OTP reset codes) —
+    # view them at http://localhost:8025 instead of sending real mail
+    # through Gmail SMTP while developing.
+    mailhog:
+        image: mailhog/mailhog:latest
+        restart: unless-stopped
+        ports:
+            - "8025:8025"
+
+volumes:
+    mysql-data:

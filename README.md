@@ -1,3 +1,41 @@
+# Loan Management System API
+
+REST API (Laravel 13, JWT auth, Spatie roles/permissions) for a mobile loan
+management application. API docs: `/docs/api` (Scalar UI) and `/docs/api.json`
+(OpenAPI spec).
+
+## Running locally with Docker
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+docker compose exec app php artisan key:generate
+docker compose exec app php artisan jwt:secret
+docker compose exec app php artisan migrate --seed
+```
+
+The API is then available at `http://localhost:8000` (override with `APP_PORT`
+in `.env`). MySQL is exposed on `3306`. Outgoing mail — including password
+reset OTPs — is caught by Mailhog instead of sent for real; view it at
+`http://localhost:8025`.
+
+```bash
+docker compose exec app php artisan test   # run the test suite
+docker compose logs -f app                 # tail application logs
+docker compose down                        # stop the stack
+```
+
+## Deployment
+
+Pushing to `dev` runs `.github/workflows/dev.yml`: the test suite must pass,
+then two images (`app`, `nginx`) are built from the `Dockerfile` and pushed to
+GHCR, then the VPS pulls and runs them via `docker-compose.prod.yml`. See that
+file's header comments for one-time VPS setup and the required GitHub
+secrets (`VPS_HOST`, `VPS_PORT`, `VPS_USER`, `VPS_PRIVATE_KEY`) and the
+optional `APP_PORT` repo variable.
+
+---
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">

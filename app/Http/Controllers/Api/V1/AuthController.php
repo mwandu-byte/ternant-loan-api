@@ -211,8 +211,8 @@ class AuthController extends Controller
      *
      * Always responds with the same generic success message whether or not
      * the email belongs to an account, so the endpoint cannot be used to
-     * enumerate registered users. If the email exists, a password reset
-     * email containing a mobile deep link is sent. Rate limited per IP.
+     * enumerate registered users. If the email exists, a 6-digit numeric OTP
+     * is emailed to it. Rate limited per IP.
      */
     #[Response(200, description: 'Always returned, regardless of whether the email exists.', type: self::NULL_DATA_SCHEMA, examples: [[
         'success' => true,
@@ -238,22 +238,23 @@ class AuthController extends Controller
     /**
      * Reset password
      *
-     * Resets the account's password using the token emailed by
-     * forgot-password. The token is single-use and is invalidated after a
+     * Resets the account's password using the 6-digit OTP emailed by
+     * forgot-password. The OTP is single-use and is invalidated after a
      * successful reset (or after any new forgot-password request for the
-     * same account). On success, every active refresh token for the user is
-     * revoked, so previously issued sessions can no longer refresh — the
-     * user is not automatically logged in and must call login again.
+     * same account, which issues a new OTP). On success, every active
+     * refresh token for the user is revoked, so previously issued sessions
+     * can no longer refresh — the user is not automatically logged in and
+     * must call login again.
      */
     #[Response(200, description: 'Password reset successfully.', type: self::NULL_DATA_SCHEMA, examples: [[
         'success' => true,
         'message' => 'Password reset successfully.',
         'data' => null,
     ]])]
-    #[Response(422, description: 'Either the token does not exist / has expired / was already used, or the request failed validation (password confirmation mismatch, password too weak, etc). The "invalid or expired" case always returns an empty errors object; validation failures return field-keyed errors.', type: 'array{success: false, message: string, errors: object|array<string, string[]>}', examples: [
+    #[Response(422, description: 'Either the OTP does not exist / has expired / was already used, or the request failed validation (password confirmation mismatch, password too weak, etc). The "invalid or expired" case always returns an empty errors object; validation failures return field-keyed errors.', type: 'array{success: false, message: string, errors: object|array<string, string[]>}', examples: [
         [
             'success' => false,
-            'message' => 'The password reset token is invalid or has expired.',
+            'message' => 'The reset code is invalid or has expired.',
             'errors' => [],
         ],
         [
@@ -270,7 +271,7 @@ class AuthController extends Controller
     {
         $this->resetPasswordService->reset(
             $request->validated('email'),
-            $request->validated('token'),
+            $request->validated('otp'),
             $request->validated('password'),
         );
 

@@ -4,16 +4,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Password Reset Deep Link Scheme
+    | Password Reset OTP
     |--------------------------------------------------------------------------
     |
-    | The mobile application's custom URL scheme, used to build the deep link
-    | sent in the password reset email (e.g. "loanmanagement://reset-password
-    | ?token=...&email=..."). The mobile app registers this scheme and opens
-    | the reset-password screen when it receives a matching link.
+    | A one-time numeric code emailed to the user, typed into the mobile app's
+    | reset-password screen alongside their new password. Stored hashed in
+    | the `password_reset_tokens` table (one row per email — a new request
+    | replaces any previous, unused code), and is single-use: it's deleted
+    | as soon as it's successfully used to reset the password.
     |
     */
 
-    'url_scheme' => env('PASSWORD_RESET_URL_SCHEME', 'loanmanagement'),
+    'otp_length' => (int) env('PASSWORD_RESET_OTP_LENGTH', 6),
+
+    'otp_expire_minutes' => (int) env('PASSWORD_RESET_OTP_EXPIRE_MINUTES', 10),
 
 ];

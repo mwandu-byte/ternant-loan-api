@@ -19,9 +19,13 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <env name="APP_KEY" value="base64:KX3bI6MZ+OhI5Kh/G/rAtjfomSTTbFuqvd9XWt/bkdQ="/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="AUTH_GUARD" value="api"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
+        <!-- Fixed, non-secret value used only for the test suite so CI can run
+             without a real .env (which is gitignored and never checked out). -->
+        <env name="JWT_SECRET" value="32500b9d2ff9a9c6c198b96af7086df448bd988dd946ad575eae5e6b6b492a52"/>
         <env name="JWT_ACCESS_TTL" value="15"/>
         <env name="JWT_REFRESH_TTL" value="20160"/>
         <env name="JWT_BLACKLIST_ENABLED" value="true"/>

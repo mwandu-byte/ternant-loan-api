@@ -24,30 +24,30 @@ class ResetPasswordTest extends TestCase
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
-    private function requestResetTokenFor(User $user): string
+    private function requestResetOtpFor(User $user): string
     {
         Notification::fake();
 
         $this->postJson('/api/v1/auth/forgot-password', ['email' => $user->email]);
 
-        $token = null;
-        Notification::assertSentTo($user, ResetPasswordNotification::class, function ($notification) use (&$token) {
-            $token = $notification->token;
+        $otp = null;
+        Notification::assertSentTo($user, ResetPasswordNotification::class, function ($notification) use (&$otp) {
+            $otp = $notification->otp;
 
             return true;
         });
 
-        return (string) $token;
+        return (string) $otp;
     }
 
     public function test_successful_password_reset(): void
     {
         $user = User::factory()->create(['password' => bcrypt('OldPassword123!')]);
-        $token = $this->requestResetTokenFor($user);
+        $otp = $this->requestResetOtpFor($user);
 
         $response = $this->postJson('/api/v1/auth/reset-password', [
             'email' => $user->email,
-            'token' => $token,
+            'otp' => $otp,
             'password' => 'NewStrongPassword123!',
             'password_confirmation' => 'NewStrongPassword123!',
         ]);
@@ -61,62 +61,62 @@ class ResetPasswordTest extends TestCase
         $this->assertTrue(Hash::check('NewStrongPassword123!', $user->fresh()->password));
     }
 
-    public function test_reset_with_invalid_token_fails(): void
+    public function test_reset_with_invalid_otp_fails(): void
     {
         $user = User::factory()->create();
 
         $response = $this->postJson('/api/v1/auth/reset-password', [
             'email' => $user->email,
-            'token' => 'this-token-does-not-exist',
+            'otp' => '000000',
             'password' => 'NewStrongPassword123!',
             'password_confirmation' => 'NewStrongPassword123!',
         ]);
 
         $response->assertStatus(422)->assertJson([
             'success' => false,
-            'message' => 'The password reset token is invalid or has expired.',
+            'message' => 'The reset code is invalid or has expired.',
             'errors' => [],
         ]);
     }
 
-    public function test_reset_with_expired_token_fails(): void
+    public function test_reset_with_expired_otp_fails(): void
     {
         $user = User::factory()->create();
 
         DB::table('password_reset_tokens')->insert([
             'email' => $user->email,
-            'token' => Hash::make('an-old-plaintext-token'),
-            'created_at' => now()->subMinutes(config('auth.passwords.users.expire') + 5),
+            'token' => Hash::make('654321'),
+            'created_at' => now()->subMinutes(config('password_reset.otp_expire_minutes') + 5),
         ]);
 
         $response = $this->postJson('/api/v1/auth/reset-password', [
             'email' => $user->email,
-            'token' => 'an-old-plaintext-token',
+            'otp' => '654321',
             'password' => 'NewStrongPassword123!',
             'password_confirmation' => 'NewStrongPassword123!',
         ]);
 
         $response->assertStatus(422)->assertJson([
             'success' => false,
-            'message' => 'The password reset token is invalid or has expired.',
+            'message' => 'The reset code is invalid or has expired.',
         ]);
     }
 
-    public function test_reset_token_cannot_be_reused(): void
+    public function test_reset_otp_cannot_be_reused(): void
     {
         $user = User::factory()->create();
-        $token = $this->requestResetTokenFor($user);
+        $otp = $this->requestResetOtpFor($user);
 
         $this->postJson('/api/v1/auth/reset-password', [
             'email' => $user->email,
-            'token' => $token,
+            'otp' => $otp,
             'password' => 'NewStrongPassword123!',
             'password_confirmation' => 'NewStrongPassword123!',
         ])->assertOk();
 
         $this->postJson('/api/v1/auth/reset-password', [
             'email' => $user->email,
-            'token' => $token,
+            'otp' => $otp,
             'password' => 'AnotherStrongPassword456!',
             'password_confirmation' => 'AnotherStrongPassword456!',
         ])->assertStatus(422)->assertJson(['success' => false]);
@@ -125,11 +125,11 @@ class ResetPasswordTest extends TestCase
     public function test_reset_password_confirmation_mismatch(): void
     {
         $user = User::factory()->create();
-        $token = $this->requestResetTokenFor($user);
+        $otp = $this->requestResetOtpFor($user);
 
         $response = $this->postJson('/api/v1/auth/reset-password', [
             'email' => $user->email,
-            'token' => $token,
+            'otp' => $otp,
             'password' => 'NewStrongPassword123!',
             'password_confirmation' => 'SomethingElse123!',
         ]);
@@ -140,11 +140,11 @@ class ResetPasswordTest extends TestCase
     public function test_reset_with_weak_password_fails(): void
     {
         $user = User::factory()->create();
-        $token = $this->requestResetTokenFor($user);
+        $otp = $this->requestResetOtpFor($user);
 
         $response = $this->postJson('/api/v1/auth/reset-password', [
             'email' => $user->email,
-            'token' => $token,
+            'otp' => $otp,
             'password' => 'weak',
             'password_confirmation' => 'weak',
         ]);
@@ -163,11 +163,11 @@ class ResetPasswordTest extends TestCase
             'expires_at' => now()->addDays(14),
         ]);
 
-        $token = $this->requestResetTokenFor($user);
+        $otp = $this->requestResetOtpFor($user);
 
         $this->postJson('/api/v1/auth/reset-password', [
             'email' => $user->email,
-            'token' => $token,
+            'otp' => $otp,
             'password' => 'NewStrongPassword123!',
             'password_confirmation' => 'NewStrongPassword123!',
         ])->assertOk();

@@ -19,7 +19,7 @@ class ResetPasswordRequest extends FormRequest
     {
         return [
             'email' => ['required', 'email'],
-            'token' => ['required', 'string'],
+            'otp' => ['required', 'digits:'.config('password_reset.otp_length')],
             /**
              * At least 10 characters, including uppercase, lowercase, a number, and
              * a symbol. In production, also rejected if found in a known data breach.

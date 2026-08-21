@@ -97,12 +97,16 @@ return [
     |
     */
 
+    // Note: only 'table' is actually used — password reset is implemented via a
+    // custom OTP flow (App\Services\Auth\{ForgotPassword,ResetPassword}Service),
+    // not Laravel's built-in password broker, so 'expire'/'throttle' here are
+    // unused; see config/password_reset.php for the OTP's own expiry setting.
     'passwords' => [
         'users' => [
             'provider' => 'users',
             'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
-            'expire' => (int) env('PASSWORD_RESET_TOKEN_EXPIRE_MINUTES', 60),
-            'throttle' => (int) env('PASSWORD_RESET_TOKEN_THROTTLE_SECONDS', 60),
+            'expire' => 60,
+            'throttle' => 60,
         ],
     ],
 
