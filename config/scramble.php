@@ -174,12 +174,13 @@ return [
      *         'scheme' => \Dedoc\Scramble\Support\Generator\SecurityScheme::http('bearer'),
      *     ],
      * ],
+     *
+     * NOTE: the 'scheme' value must be a live SecurityScheme object, which
+     * can't be written here — `php artisan config:cache` serializes this
+     * whole file with var_export(), and SecurityScheme doesn't support
+     * that. The real value is set at runtime instead, in
+     * AppServiceProvider::boot() — see the comment there. Left as `null`
+     * here on purpose so this file stays cache-safe.
      */
-    'security_strategy' => [
-        \Dedoc\Scramble\SecurityDocumentation\MiddlewareAuthSecurityStrategy::class,
-        [
-            'middleware' => ['auth', 'auth:*'],
-            'scheme' => \Dedoc\Scramble\Support\Generator\SecurityScheme::http('bearer', 'JWT')->as('bearerAuth'),
-        ],
-    ],
+    'security_strategy' => null,
 ];

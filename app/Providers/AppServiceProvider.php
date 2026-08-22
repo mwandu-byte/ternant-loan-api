@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use Dedoc\Scramble\Scramble;
+use Dedoc\Scramble\SecurityDocumentation\MiddlewareAuthSecurityStrategy;
+use Dedoc\Scramble\Support\Generator\SecurityScheme;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -49,5 +52,25 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('viewApiDocs', function ($user = null) {
             return (bool) env('API_DOCS_ENABLED', false);
         });
+
+        // config/scramble.php keeps 'security_strategy' as null on purpose: it needs
+        // a live SecurityScheme object, and `php artisan config:cache` serializes the
+        // *entire* Laravel config repository with var_export(), which SecurityScheme
+        // doesn't support — so the object can never live in config() at all, cached
+        // or not. Scramble itself sidesteps this: at boot it copies config('scramble')
+        // into a singleton GeneratorConfig object it reads from afterward, not
+        // Laravel's config repository. Setting the real value directly on that
+        // singleton (after Scramble's own boot has already populated the rest of the
+        // config) keeps the object completely invisible to config:cache, since
+        // config:cache only ever inspects the Laravel config repository.
+        Scramble::configure()->config(array_merge(config('scramble'), [
+            'security_strategy' => [
+                MiddlewareAuthSecurityStrategy::class,
+                [
+                    'middleware' => ['auth', 'auth:*'],
+                    'scheme' => SecurityScheme::http('bearer', 'JWT')->as('bearerAuth'),
+                ],
+            ],
+        ]));
     }
 }
