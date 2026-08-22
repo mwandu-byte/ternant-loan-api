@@ -4,9 +4,10 @@ use App\Exceptions\Auth\IncorrectCurrentPasswordException;
 use App\Exceptions\Auth\InvalidCredentialsException;
 use App\Exceptions\Auth\InvalidRefreshTokenException;
 use App\Exceptions\Auth\InvalidResetTokenException;
+use App\Exceptions\Customer\CustomerHasRelatedRecordsException;
 use App\Http\Responses\ApiResponse;
-use Illuminate\Auth\AuthenticationException;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,6 +16,10 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use PHPOpenSourceSaver\JWTAuth\Exceptions\JWTException;
 use Spatie\Permission\Exceptions\UnauthorizedException as PermissionUnauthorizedException;
+use Spatie\Permission\Middleware\PermissionMiddleware;
+use Spatie\Permission\Middleware\RoleMiddleware;
+use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -25,9 +30,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
-            'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+            'role' => RoleMiddleware::class,
+            'permission' => PermissionMiddleware::class,
+            'role_or_permission' => RoleOrPermissionMiddleware::class,
         ]);
 
         // This is a JSON-only API — there is no "login" web route to redirect
@@ -84,6 +89,18 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (ValidationException $e, Request $request) {
             if ($request->is('api/*')) {
                 return ApiResponse::validationError($e->errors());
+            }
+        });
+
+        $exceptions->render(function (NotFoundHttpException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error('The requested resource was not found.', 404);
+            }
+        });
+
+        $exceptions->render(function (CustomerHasRelatedRecordsException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 409);
             }
         });
 
