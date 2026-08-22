@@ -7,15 +7,9 @@ on:
 
   workflow_dispatch:
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_APP: ghcr.io/${{ github.repository_owner }}/loan-management-api-app
-  IMAGE_NGINX: ghcr.io/${{ github.repository_owner }}/loan-management-api-nginx
-
 jobs:
   # ================================================================
-  # 1. TEST — gates everything else. Nothing builds or deploys on a
-  #    red test suite.
+  # 1. TEST — gates the deploy. Nothing ships on a red test suite.
   # ================================================================
   test:
     name: Run test suite
@@ -54,73 +48,52 @@ jobs:
         run: composer test
 
   # ================================================================
-  # 2. BUILD & PUSH — builds the two images (app, nginx) from the same
-  #    Dockerfile and pushes both to GHCR, tagged with the commit SHA.
-  # ================================================================
-  build:
-    name: Build and push Docker images
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push app image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: app
-          push: true
-          tags: |
-            ${{ env.IMAGE_APP }}:${{ github.sha }}
-            ${{ env.IMAGE_APP }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push nginx image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: nginx
-          push: true
-          tags: |
-            ${{ env.IMAGE_NGINX }}:${{ github.sha }}
-            ${{ env.IMAGE_NGINX }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # ================================================================
-  # 3. DEPLOY — ships the two images built above to the VPS and runs
-  #    them via `docker compose -f docker-compose.prod.yml`.
+  # 2. BUILD AND DEPLOY — rsync source to the VPS, install PHP deps
+  #    and build directly there. This is an API only — no frontend,
+  #    no Node/npm/Vite anywhere in the pipeline.
   # ================================================================
   deploy:
-    name: Deploy to VPS
-    needs: build
+    name: Build and Deploy NAALI PUB
+    needs: test
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      # GITHUB_TOKEN needs read access to packages so the VPS can log in to
-      # GHCR and pull the images the `build` job just pushed.
-      packages: read
 
     steps:
+      # ============================================================
+      # 1. CHECKOUT
+      # ============================================================
       - name: Checkout repository
         uses: actions/checkout@v4
 
+
+      # ============================================================
+      # 2. SETUP PHP
+      # ============================================================
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, bcmath, pdo, pdo_mysql, xml, curl, gd, zip
+          tools: composer:v2
+          coverage: none
+
+
+      # ============================================================
+      # 3. INSTALL PHP DEPENDENCIES
+      # ============================================================
+      - name: Install Composer dependencies
+        run: |
+          set -e
+
+          composer install \
+            --no-dev \
+            --prefer-dist \
+            --optimize-autoloader \
+            --no-interaction
+
+
+      # ============================================================
+      # 4. SETUP SSH
+      # ============================================================
       - name: Setup SSH
         run: |
           set -e
@@ -138,22 +111,11 @@ jobs:
 
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Copy docker-compose.prod.yml to the VPS
-        run: |
-          set -e
 
-          scp -P "${{ secrets.VPS_PORT }}" \
-            docker-compose.prod.yml \
-            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/Projects/loan-management-api/docker-compose.prod.yml"
-
+      # ============================================================
+      # 5. DEPLOY APPLICATION
+      # ============================================================
       - name: Deploy application
-        env:
-          # GITHUB_TOKEN is scoped to this job/run only — used here purely
-          # to let the VPS authenticate to GHCR and pull the images just
-          # built above. It is never written to disk on the server.
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_ACTOR: ${{ github.actor }}
-          IMAGE_TAG: ${{ github.sha }}
         run: |
           set -e
 
@@ -165,11 +127,32 @@ jobs:
           echo "Deploying NAALI PUB"
           echo "Server: ${SERVER}"
           echo "Path: ${DEPLOY_PATH}"
-          echo "Image tag: ${IMAGE_TAG}"
           echo "========================================="
 
-          ssh -p "${PORT}" "${SERVER}" \
-            "GHCR_TOKEN='${GHCR_TOKEN}' GHCR_ACTOR='${GHCR_ACTOR}' IMAGE_TAG='${IMAGE_TAG}' bash -s" << 'EOF'
+
+          # --------------------------------------------------------
+          # Sync application files
+          # --------------------------------------------------------
+
+          echo "Syncing application files..."
+
+          rsync -avz --delete \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude=".env" \
+            --exclude="vendor" \
+            --exclude="storage" \
+            --exclude="bootstrap/cache" \
+            -e "ssh -p ${PORT}" \
+            ./ \
+            "${SERVER}:${DEPLOY_PATH}"
+
+
+          # --------------------------------------------------------
+          # Execute deployment commands on server
+          # --------------------------------------------------------
+
+          ssh -p "${PORT}" "${SERVER}" << 'EOF'
 
             set -e
 
@@ -179,6 +162,13 @@ jobs:
             echo "Starting NAALI PUB deployment"
             echo "========================================="
 
+
+            # ======================================================
+            # Verify environment
+            # ======================================================
+
+            echo "Checking environment..."
+
             if [ ! -f .env ]; then
                 echo "ERROR: .env file does not exist."
                 exit 1
@@ -186,35 +176,58 @@ jobs:
 
             echo ".env file found."
 
-            echo "========================================="
-            echo "Logging in to GHCR..."
-            echo "========================================="
 
-            echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_ACTOR}" --password-stdin
-
-            echo "========================================="
-            echo "Pulling images (${IMAGE_TAG})..."
-            echo "========================================="
-
-            docker compose -f docker-compose.prod.yml pull
+            # ======================================================
+            # Install PHP dependencies
+            # ======================================================
 
             echo "========================================="
-            echo "Starting containers..."
+            echo "Installing Composer dependencies..."
             echo "========================================="
 
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            composer install \
+              --no-dev \
+              --prefer-dist \
+              --optimize-autoloader \
+              --no-interaction
+
+
+            # ======================================================
+            # Laravel migrations
+            # ======================================================
 
             echo "========================================="
             echo "Running database migrations..."
             echo "========================================="
 
-            docker compose -f docker-compose.prod.yml exec -T app php artisan migrate --force
+            php artisan migrate --force
+
+
+            # ======================================================
+            # Clear Laravel caches
+            # ======================================================
 
             echo "========================================="
-            echo "Removing unused images..."
+            echo "Clearing Laravel caches..."
             echo "========================================="
 
-            docker image prune -f
+            php artisan optimize:clear
+
+
+            # ======================================================
+            # Optimize Laravel
+            # ======================================================
+
+            echo "========================================="
+            echo "Optimizing Laravel..."
+            echo "========================================="
+
+            php artisan optimize
+
+
+            # ======================================================
+            # Deployment completed
+            # ======================================================
 
             echo "========================================="
             echo "NAALI PUB deployment completed successfully"
@@ -222,27 +235,10 @@ jobs:
 
           EOF
 
-      - name: Health check
-        env:
-          # Repo Variable (Settings → Actions → Variables), not a secret —
-          # only needs to change if APP_PORT in the VPS .env differs from
-          # docker-compose.prod.yml's default of 9090.
-          APP_PORT: ${{ vars.APP_PORT || '9090' }}
-        run: |
-          set -e
 
-          sleep 5
-
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            "http://${{ secrets.VPS_HOST }}:${APP_PORT}/up" || echo "000")
-
-          if [ "$STATUS" != "200" ]; then
-            echo "Health check failed with status: $STATUS"
-            exit 1
-          fi
-
-          echo "Health check passed."
-
+      # ============================================================
+      # 6. DEPLOYMENT SUCCESS
+      # ============================================================
       - name: Deployment successful
         run: |
           echo "========================================="

@@ -4,35 +4,28 @@ REST API (Laravel 13, JWT auth, Spatie roles/permissions) for a mobile loan
 management application. API docs: `/docs/api` (Scalar UI) and `/docs/api.json`
 (OpenAPI spec).
 
-## Running locally with Docker
+## Running locally
 
 ```bash
 cp .env.example .env
-docker compose up -d --build
-docker compose exec app php artisan key:generate
-docker compose exec app php artisan jwt:secret
-docker compose exec app php artisan migrate --seed
+composer install
+php artisan key:generate
+php artisan jwt:secret
+php artisan migrate --seed
+npm install && npm run build
+php artisan serve
 ```
 
-The API is then available at `http://localhost:8000` (override with `APP_PORT`
-in `.env`). MySQL is exposed on `3306`. Outgoing mail — including password
-reset OTPs — is caught by Mailhog instead of sent for real; view it at
-`http://localhost:8025`.
-
 ```bash
-docker compose exec app php artisan test   # run the test suite
-docker compose logs -f app                 # tail application logs
-docker compose down                        # stop the stack
+composer test   # run the test suite
 ```
 
 ## Deployment
 
 Pushing to `dev` runs `.github/workflows/dev.yml`: the test suite must pass,
-then two images (`app`, `nginx`) are built from the `Dockerfile` and pushed to
-GHCR, then the VPS pulls and runs them via `docker-compose.prod.yml`. See that
-file's header comments for one-time VPS setup and the required GitHub
-secrets (`VPS_HOST`, `VPS_PORT`, `VPS_USER`, `VPS_PRIVATE_KEY`) and the
-optional `APP_PORT` repo variable.
+then the app is rsynced to the VPS and built there directly (composer install,
+npm build, migrations, cache optimization) over SSH. Required GitHub secrets:
+`VPS_HOST`, `VPS_PORT`, `VPS_USER`, `VPS_PRIVATE_KEY`.
 
 ---
 
