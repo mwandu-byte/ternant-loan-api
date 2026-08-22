@@ -72,7 +72,7 @@ return [
             'hideTryIt' => false,
             'hideSchemas' => false,
             'logo' => '',
-            'tryItCredentialsPolicy' => 'include',
+            'tryItCredentialsPolicy' => 'omit',
             'layout' => 'responsive',
             'router' => 'hash',
         ],
@@ -83,11 +83,14 @@ return [
             'view' => 'scramble::scalar',
             'cdn' => 'https://cdn.jsdelivr.net/npm/@scalar/api-reference',
             'theme' => 'laravel',
-            'proxyUrl' => 'https://proxy.scalar.com',
             'darkMode' => false,
             'showDeveloperTools' => 'never',
             'agent' => ['disabled' => true],
-            'credentials' => 'include',
+            // JWT auth sends the token via the Authorization header, not cookies, and the docs page
+            // is same-origin with the API, so no proxy or credentialed fetch is needed. 'include' here
+            // forces the browser to require a non-wildcard CORS origin, which the public
+            // proxy.scalar.com relay doesn't send, breaking "Try it" with a CORS error.
+            'credentials' => 'omit',
         ],
     ],
 
