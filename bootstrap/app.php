@@ -4,7 +4,11 @@ use App\Exceptions\Auth\IncorrectCurrentPasswordException;
 use App\Exceptions\Auth\InvalidCredentialsException;
 use App\Exceptions\Auth\InvalidRefreshTokenException;
 use App\Exceptions\Auth\InvalidResetTokenException;
+use App\Exceptions\Collateral\CollateralNotFoundException;
 use App\Exceptions\Customer\CustomerHasRelatedRecordsException;
+use App\Exceptions\Loan\LoanAmountOutOfRangeException;
+use App\Exceptions\Loan\LoanNotEditableException;
+use App\Exceptions\Loan\LoanNotFoundException;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -99,6 +103,30 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (CustomerHasRelatedRecordsException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 409);
+            }
+        });
+
+        $exceptions->render(function (CollateralNotFoundException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 404);
+            }
+        });
+
+        $exceptions->render(function (LoanNotFoundException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 404);
+            }
+        });
+
+        $exceptions->render(function (LoanAmountOutOfRangeException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 422);
+            }
+        });
+
+        $exceptions->render(function (LoanNotEditableException $e, Request $request) {
             if ($request->is('api/*')) {
                 return ApiResponse::error($e->getMessage(), 409);
             }

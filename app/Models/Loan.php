@@ -1,0 +1,56 @@
+<?php
+
+namespace App\Models;
+
+use Database\Factories\LoanFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+
+#[Fillable([
+    'customer_id',
+    'reference_no',
+    'principal_amount',
+    'interest_rate',
+    'interest_amount',
+    'total_amount',
+    'repayment_frequency',
+    'repayment_term',
+    'start_date',
+    'due_date',
+    'status',
+    'notes',
+])]
+class Loan extends Model
+{
+    /** @use HasFactory<LoanFactory> */
+    use HasFactory;
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'principal_amount' => 'decimal:2',
+            'interest_rate' => 'decimal:2',
+            'interest_amount' => 'decimal:2',
+            'total_amount' => 'decimal:2',
+            'repayment_term' => 'integer',
+            'start_date' => 'date',
+            'due_date' => 'date',
+        ];
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function collaterals(): BelongsToMany
+    {
+        return $this->belongsToMany(Collateral::class, 'collateral_loan');
+    }
+}

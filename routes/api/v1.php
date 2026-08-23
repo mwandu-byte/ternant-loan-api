@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\CollateralController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\LoanController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
@@ -23,6 +25,22 @@ Route::middleware('auth:api')->prefix('customers')->group(function () {
     Route::get('{customer}', [CustomerController::class, 'show'])->middleware('permission:customers.view');
     Route::put('{customer}', [CustomerController::class, 'update'])->middleware('permission:customers.update');
     Route::delete('{customer}', [CustomerController::class, 'destroy'])->middleware('permission:customers.delete');
+
+    Route::prefix('{customer}/collaterals')->group(function () {
+        Route::get('/', [CollateralController::class, 'index'])->middleware('permission:collateral.view');
+        Route::post('/', [CollateralController::class, 'store'])->middleware('permission:collateral.create');
+        Route::get('{collateral}', [CollateralController::class, 'show'])->middleware('permission:collateral.view');
+        Route::put('{collateral}', [CollateralController::class, 'update'])->middleware('permission:collateral.update');
+        Route::delete('{collateral}', [CollateralController::class, 'destroy'])->middleware('permission:collateral.delete');
+    });
+
+    Route::prefix('{customer}/loans')->group(function () {
+        Route::get('/', [LoanController::class, 'index'])->middleware('permission:loans.view');
+        Route::post('/', [LoanController::class, 'store'])->middleware('permission:loans.create');
+        Route::get('{loan}', [LoanController::class, 'show'])->middleware('permission:loans.view');
+        Route::put('{loan}', [LoanController::class, 'update'])->middleware('permission:loans.update');
+        Route::delete('{loan}', [LoanController::class, 'destroy'])->middleware('permission:loans.delete');
+    });
 });
 
 // ---------------------------------------------------------------------------
@@ -32,8 +50,6 @@ Route::middleware('auth:api')->prefix('customers')->group(function () {
 // controller class that doesn't exist yet would fatal-error route
 // registration/caching.
 // ---------------------------------------------------------------------------
-// Route::middleware(['auth:api', 'permission:collateral.view'])->prefix('collaterals')->group(...);
-// Route::middleware(['auth:api', 'permission:loans.view'])->prefix('loans')->group(...);
 // Route::middleware(['auth:api', 'permission:repayments.view'])->prefix('repayments')->group(...);
 // Route::middleware(['auth:api', 'permission:payments.view'])->prefix('payments')->group(...);
 // Route::middleware(['auth:api', 'permission:penalties.view'])->prefix('penalties')->group(...);
