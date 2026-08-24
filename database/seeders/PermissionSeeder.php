@@ -75,6 +75,11 @@ class PermissionSeeder extends Seeder
             'roles.create',
             'roles.update',
             'roles.delete',
+
+            'permissions.view',
+            'permissions.create',
+            'permissions.update',
+            'permissions.delete',
         ];
     }
 }

@@ -4,6 +4,7 @@ use App\Exceptions\Auth\IncorrectCurrentPasswordException;
 use App\Exceptions\Auth\InvalidCredentialsException;
 use App\Exceptions\Auth\InvalidRefreshTokenException;
 use App\Exceptions\Auth\InvalidResetTokenException;
+use App\Exceptions\Authorization\InsufficientAdministrativeCoverageException;
 use App\Exceptions\Collateral\CollateralNotFoundException;
 use App\Exceptions\Customer\CustomerHasRelatedRecordsException;
 use App\Exceptions\Loan\LoanAmountOutOfRangeException;
@@ -13,6 +14,7 @@ use App\Exceptions\Payment\InvalidDisbursementAmountException;
 use App\Exceptions\Payment\LoanAlreadyDisbursedException;
 use App\Exceptions\Payment\LoanNotEligibleForDisbursementException;
 use App\Exceptions\Payment\PaymentNotFoundException;
+use App\Exceptions\Permission\PermissionInUseException;
 use App\Exceptions\Receipt\DuplicateReceiptReferenceException;
 use App\Exceptions\Repayment\LoanNotEligibleForRepaymentScheduleException;
 use App\Exceptions\Repayment\RepaymentExceedsOutstandingAmountException;
@@ -20,6 +22,10 @@ use App\Exceptions\Repayment\RepaymentNotFoundException;
 use App\Exceptions\Repayment\RepaymentScheduleAlreadyExistsException;
 use App\Exceptions\Repayment\RepaymentScheduleDoesNotBelongToLoanException;
 use App\Exceptions\Repayment\RepaymentScheduleNotFoundException;
+use App\Exceptions\Role\RoleAssignedToUsersException;
+use App\Exceptions\User\SelfDeletionNotAllowedException;
+use App\Exceptions\User\SelfRoleModificationException;
+use App\Exceptions\User\UserHasRelatedRecordsException;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -213,6 +219,42 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (PaymentNotFoundException $e, Request $request) {
             if ($request->is('api/*')) {
                 return ApiResponse::error($e->getMessage(), 404);
+            }
+        });
+
+        $exceptions->render(function (SelfDeletionNotAllowedException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 422);
+            }
+        });
+
+        $exceptions->render(function (UserHasRelatedRecordsException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 409);
+            }
+        });
+
+        $exceptions->render(function (SelfRoleModificationException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 403);
+            }
+        });
+
+        $exceptions->render(function (RoleAssignedToUsersException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 409);
+            }
+        });
+
+        $exceptions->render(function (PermissionInUseException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 409);
+            }
+        });
+
+        $exceptions->render(function (InsufficientAdministrativeCoverageException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 409);
             }
         });
 

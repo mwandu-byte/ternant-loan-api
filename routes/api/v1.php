@@ -9,10 +9,13 @@ use App\Http\Controllers\Api\V1\LoanAmountConfigurationController;
 use App\Http\Controllers\Api\V1\LoanController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PenaltyRuleController;
+use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\RepaymentController;
 use App\Http\Controllers\Api\V1\RepaymentFrequencyController;
 use App\Http\Controllers\Api\V1\RepaymentScheduleController;
 use App\Http\Controllers\Api\V1\RepaymentTermController;
+use App\Http\Controllers\Api\V1\RoleController;
+use App\Http\Controllers\Api\V1\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
@@ -122,6 +125,43 @@ Route::middleware('auth:api')->group(function () {
         });
     });
 
+    Route::prefix('users')->group(function () {
+        Route::get('/', [UserController::class, 'index'])->middleware('permission:users.view');
+        Route::post('/', [UserController::class, 'store'])->middleware('permission:users.create');
+        Route::get('{user}', [UserController::class, 'show'])->middleware('permission:users.view');
+        Route::put('{user}', [UserController::class, 'update'])->middleware('permission:users.update');
+        Route::delete('{user}', [UserController::class, 'destroy'])->middleware('permission:users.delete');
+        Route::get('{user}/permissions', [UserController::class, 'permissions'])->middleware('permission:users.view');
+
+        Route::prefix('{user}/roles')->group(function () {
+            Route::put('/', [UserController::class, 'syncRoles'])->middleware('permission:users.update');
+            Route::post('/', [UserController::class, 'addRole'])->middleware('permission:users.update');
+            Route::delete('{role}', [UserController::class, 'removeRole'])->middleware('permission:users.update');
+        });
+    });
+
+    Route::prefix('roles')->group(function () {
+        Route::get('/', [RoleController::class, 'index'])->middleware('permission:roles.view');
+        Route::post('/', [RoleController::class, 'store'])->middleware('permission:roles.create');
+        Route::get('{role}', [RoleController::class, 'show'])->middleware('permission:roles.view');
+        Route::put('{role}', [RoleController::class, 'update'])->middleware('permission:roles.update');
+        Route::delete('{role}', [RoleController::class, 'destroy'])->middleware('permission:roles.delete');
+
+        Route::prefix('{role}/permissions')->group(function () {
+            Route::put('/', [RoleController::class, 'syncPermissions'])->middleware('permission:roles.update');
+            Route::post('/', [RoleController::class, 'addPermission'])->middleware('permission:roles.update');
+            Route::delete('{permission}', [RoleController::class, 'revokePermission'])->middleware('permission:roles.update');
+        });
+    });
+
+    Route::prefix('permissions')->group(function () {
+        Route::get('/', [PermissionController::class, 'index'])->middleware('permission:permissions.view');
+        Route::post('/', [PermissionController::class, 'store'])->middleware('permission:permissions.create');
+        Route::get('{permission}', [PermissionController::class, 'show'])->middleware('permission:permissions.view');
+        Route::put('{permission}', [PermissionController::class, 'update'])->middleware('permission:permissions.update');
+        Route::delete('{permission}', [PermissionController::class, 'destroy'])->middleware('permission:permissions.delete');
+    });
+
     // -----------------------------------------------------------------------
     // Future modules — not implemented yet. Each will be its own route
     // group, behind the relevant `permission:*` middleware, once its
@@ -132,6 +172,4 @@ Route::middleware('auth:api')->group(function () {
     // Route::middleware('permission:penalties.view')->prefix('penalties')->group(...);
     // Route::middleware('permission:reports.view')->prefix('reports')->group(...);
     // Route::middleware('permission:dashboard.view')->prefix('dashboard')->group(...);
-    // Route::middleware('permission:users.view')->prefix('users')->group(...);
-    // Route::middleware('permission:roles.view')->prefix('roles')->group(...);
 });
