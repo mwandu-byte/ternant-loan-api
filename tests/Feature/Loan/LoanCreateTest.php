@@ -433,7 +433,8 @@ class LoanCreateTest extends TestCase
             'id', 'customer_id', 'customer', 'reference_no', 'principal_amount', 'interest_rate',
             'interest_amount', 'total_amount', 'has_discount', 'discount_rate', 'applied_interest_rate',
             'repayment_frequency', 'repayment_term',
-            'start_date', 'due_date', 'status', 'notes', 'collaterals', 'created_at', 'updated_at',
+            'start_date', 'due_date', 'status', 'notes', 'collaterals', 'repayment_schedules',
+            'created_at', 'updated_at',
         ], array_keys($response->json('data')));
     }
 

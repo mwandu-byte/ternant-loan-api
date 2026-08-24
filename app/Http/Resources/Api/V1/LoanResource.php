@@ -3,6 +3,8 @@
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\Customer;
+use App\Models\RepaymentSchedule;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
@@ -25,6 +27,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon $due_date
  * @property string $status
  * @property string|null $notes
+ * @property Collection<int, RepaymentSchedule> $repaymentSchedules
  * @property Carbon $created_at
  * @property Carbon $updated_at
  */
@@ -54,6 +57,7 @@ class LoanResource extends JsonResource
             'status' => $this->status,
             'notes' => $this->notes,
             'collaterals' => CollateralResource::collection($this->collaterals),
+            'repayment_schedules' => RepaymentScheduleResource::collection($this->repaymentSchedules),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];

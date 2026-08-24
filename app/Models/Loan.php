@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'customer_id',
@@ -58,5 +59,10 @@ class Loan extends Model
     public function collaterals(): BelongsToMany
     {
         return $this->belongsToMany(Collateral::class, 'collateral_loan');
+    }
+
+    public function repaymentSchedules(): HasMany
+    {
+        return $this->hasMany(RepaymentSchedule::class);
     }
 }

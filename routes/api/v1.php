@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\InterestRuleController;
 use App\Http\Controllers\Api\V1\LoanAmountConfigurationController;
 use App\Http\Controllers\Api\V1\LoanController;
 use App\Http\Controllers\Api\V1\PenaltyRuleController;
+use App\Http\Controllers\Api\V1\RepaymentController;
 use App\Http\Controllers\Api\V1\RepaymentFrequencyController;
 use App\Http\Controllers\Api\V1\RepaymentTermController;
 use Illuminate\Support\Facades\Route;
@@ -48,6 +49,16 @@ Route::middleware('auth:api')->group(function () {
         Route::get('{loan}', [LoanController::class, 'show'])->middleware('permission:loans.view');
         Route::put('{loan}', [LoanController::class, 'update'])->middleware('permission:loans.update');
         Route::delete('{loan}', [LoanController::class, 'destroy'])->middleware('permission:loans.delete');
+
+        Route::prefix('{loan}/repayments')->group(function () {
+            Route::get('/', [RepaymentController::class, 'indexForLoan'])->middleware('permission:repayments.view');
+            Route::post('generate', [RepaymentController::class, 'generate'])->middleware('permission:repayments.create');
+        });
+    });
+
+    Route::prefix('repayments')->group(function () {
+        Route::get('/', [RepaymentController::class, 'index'])->middleware('permission:repayments.view');
+        Route::get('{repayment}', [RepaymentController::class, 'show'])->middleware('permission:repayments.view');
     });
 
     Route::prefix('loan-configurations')->group(function () {
@@ -101,7 +112,6 @@ Route::middleware('auth:api')->group(function () {
     // a controller class that doesn't exist yet would fatal-error route
     // registration/caching.
     // -----------------------------------------------------------------------
-    // Route::middleware('permission:repayments.view')->prefix('repayments')->group(...);
     // Route::middleware('permission:payments.view')->prefix('payments')->group(...);
     // Route::middleware('permission:penalties.view')->prefix('penalties')->group(...);
     // Route::middleware('permission:reports.view')->prefix('reports')->group(...);

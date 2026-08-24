@@ -10,6 +10,7 @@ use App\Models\RepaymentFrequency;
 use App\Services\LoanConfiguration\InterestRuleService;
 use App\Services\LoanConfiguration\LoanAmountConfigurationService;
 use App\Services\LoanConfiguration\RepaymentFrequencyService;
+use App\Services\Repayment\RepaymentScheduleService;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
@@ -27,6 +28,7 @@ class LoanService
         private readonly LoanAmountConfigurationService $loanAmountConfigurationService,
         private readonly InterestRuleService $interestRuleService,
         private readonly RepaymentFrequencyService $repaymentFrequencyService,
+        private readonly RepaymentScheduleService $repaymentScheduleService,
     ) {
         //
     }
@@ -36,7 +38,7 @@ class LoanService
      */
     public function list(array $filters): LengthAwarePaginator
     {
-        $query = Loan::query()->with(['customer', 'collaterals']);
+        $query = Loan::query()->with(['customer', 'collaterals', 'repaymentSchedules']);
 
         if (! empty($filters['customer_id'])) {
             $query->where('customer_id', $filters['customer_id']);
@@ -60,7 +62,7 @@ class LoanService
 
     public function find(int $id): Loan
     {
-        $loan = Loan::with(['customer', 'collaterals'])->find($id);
+        $loan = Loan::with(['customer', 'collaterals', 'repaymentSchedules'])->find($id);
 
         if ($loan === null) {
             throw new LoanNotFoundException;
@@ -129,7 +131,11 @@ class LoanService
                         $loan->collaterals()->sync($collateralIds);
                     }
 
-                    return $loan->load(['customer', 'collaterals']);
+                    if ($loan->status === 'active') {
+                        $this->repaymentScheduleService->generateForLoan($loan);
+                    }
+
+                    return $loan->load(['customer', 'collaterals', 'repaymentSchedules']);
                 });
             } catch (QueryException $e) {
                 $attempt++;
@@ -177,7 +183,9 @@ class LoanService
             $this->assertValidStatusTransition($loan->status, $data['status']);
         }
 
-        return DB::transaction(function () use ($loan, $data) {
+        $oldStatus = $loan->status;
+
+        return DB::transaction(function () use ($loan, $data, $oldStatus) {
             if (array_key_exists('collateral_ids', $data)) {
                 $this->assertCollateralsBelongToCustomer($loan->customer, $data['collateral_ids']);
                 $loan->collaterals()->sync($data['collateral_ids']);
@@ -205,7 +213,14 @@ class LoanService
 
             $loan->update($updateData);
 
-            return $loan->refresh()->load(['customer', 'collaterals']);
+            // Only the non-active -> active transition generates a
+            // schedule. active -> active (unrelated field changes) and
+            // any other transition must never trigger generation.
+            if ($oldStatus !== 'active' && $loan->status === 'active') {
+                $this->repaymentScheduleService->generateForLoan($loan);
+            }
+
+            return $loan->refresh()->load(['customer', 'collaterals', 'repaymentSchedules']);
         });
     }
 

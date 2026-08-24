@@ -9,6 +9,9 @@ use App\Exceptions\Customer\CustomerHasRelatedRecordsException;
 use App\Exceptions\Loan\LoanAmountOutOfRangeException;
 use App\Exceptions\Loan\LoanNotEditableException;
 use App\Exceptions\Loan\LoanNotFoundException;
+use App\Exceptions\Repayment\LoanNotEligibleForRepaymentScheduleException;
+use App\Exceptions\Repayment\RepaymentScheduleAlreadyExistsException;
+use App\Exceptions\Repayment\RepaymentScheduleNotFoundException;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -136,6 +139,24 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (LoanNotEditableException $e, Request $request) {
             if ($request->is('api/*')) {
                 return ApiResponse::error($e->getMessage(), 409);
+            }
+        });
+
+        $exceptions->render(function (RepaymentScheduleNotFoundException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 404);
+            }
+        });
+
+        $exceptions->render(function (RepaymentScheduleAlreadyExistsException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 409);
+            }
+        });
+
+        $exceptions->render(function (LoanNotEligibleForRepaymentScheduleException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 422);
             }
         });
 

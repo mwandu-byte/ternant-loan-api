@@ -38,6 +38,20 @@ use Illuminate\Http\Request;
  * — no collateral is created here. `customer_id` is immutable once a
  * loan is created and can never be changed via update.
  *
+ * A loan's repayment schedule is generated automatically — never by a
+ * separate client call — whenever a loan becomes `active`: either
+ * immediately on creation (`status: "active"`), or later when an
+ * update transitions its status from a non-active value to `active`.
+ * Generation uses only the loan's own frozen `principal_amount`,
+ * `interest_amount`, `total_amount`, `repayment_frequency`, and
+ * `repayment_term` — never the current lending configuration — and
+ * runs in the same database transaction as the create/update, so a
+ * loan can never end up `active` without its schedule, or vice versa.
+ * An already-active loan updated for unrelated fields (or re-saved
+ * with the same status) never regenerates or duplicates its schedule.
+ * Every loan response includes `repayment_schedules` (empty until the
+ * loan is active).
+ *
  * All endpoints return the application's standard envelope:
  * `{"success": bool, "message": string, "data"?: object|null, "errors"?: object}`.
  * All endpoints require `Authorization: Bearer {access_token}` plus the
@@ -48,7 +62,9 @@ class LoanController extends Controller
 {
     private const CUSTOMER_SCHEMA = 'array{id: int, full_name: string, phone: string, email: string|null, identification_type: string, identification_number: string, gender: string|null, address: string, photo_url: string|null, status: string, created_at: string, updated_at: string}';
 
-    private const LOAN_SCHEMA = 'array{id: int, customer_id: int, customer: '.self::CUSTOMER_SCHEMA.', reference_no: string, principal_amount: string, interest_rate: string, interest_amount: string, total_amount: string, has_discount: bool, discount_rate: string|null, applied_interest_rate: string, repayment_frequency: string, repayment_term: int, start_date: string, due_date: string, status: string, notes: string|null, collaterals: array, created_at: string, updated_at: string}';
+    private const REPAYMENT_SCHEMA = 'array{id: int, loan_id: int, installment_number: int, due_date: string, principal_amount: string, interest_amount: string, total_amount: string, outstanding_amount: string, status: string, created_at: string, updated_at: string}';
+
+    private const LOAN_SCHEMA = 'array{id: int, customer_id: int, customer: '.self::CUSTOMER_SCHEMA.', reference_no: string, principal_amount: string, interest_rate: string, interest_amount: string, total_amount: string, has_discount: bool, discount_rate: string|null, applied_interest_rate: string, repayment_frequency: string, repayment_term: int, start_date: string, due_date: string, status: string, notes: string|null, collaterals: array, repayment_schedules: '.self::REPAYMENT_SCHEMA.'[], created_at: string, updated_at: string}';
 
     private const UNAUTHENTICATED_SCHEMA = 'array{success: false, message: string}';
 
@@ -120,7 +136,11 @@ class LoanController extends Controller
      * automatically and cannot be supplied directly. Pass
      * `has_discount: true` and a `discount_rate` to apply a one-off
      * discounted rate to this loan only; the global Interest Rule
-     * configuration is never modified.
+     * configuration is never modified. If `status` is `active`, the
+     * repayment schedule is generated automatically in the same
+     * transaction as the loan itself — if generation fails, the loan
+     * is not created. A loan created with any other status has no
+     * schedule until it is later activated via update.
      */
     #[Response(201, description: 'Loan created.', type: 'array{success: true, message: string, data: '.self::LOAN_SCHEMA.'}')]
     #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[
@@ -185,7 +205,12 @@ class LoanController extends Controller
      * `reference_no`, `principal_amount`, `interest_rate`,
      * `interest_amount`, `total_amount`, `has_discount`,
      * `discount_rate`, `applied_interest_rate`) can never be changed —
-     * a loan can never be transferred to a different customer.
+     * a loan can never be transferred to a different customer. If this
+     * update transitions `status` from a non-active value to `active`,
+     * the repayment schedule is generated automatically in the same
+     * transaction — if generation fails, the status change is rolled
+     * back. Updating an already-active loan (or any other transition)
+     * never regenerates or duplicates the schedule.
      */
     #[Response(200, description: 'Loan updated.', type: 'array{success: true, message: string, data: '.self::LOAN_SCHEMA.'}')]
     #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[
@@ -212,9 +237,15 @@ class LoanController extends Controller
     public function update(UpdateLoanRequest $request, int $loan): JsonResponse
     {
         $model = $this->loanService->find($loan);
+        $wasActive = $model->status === 'active';
+
         $model = $this->loanService->update($model, $request->validated());
 
-        return ApiResponse::success(new LoanResource($model), 'Loan updated successfully');
+        $message = ! $wasActive && $model->status === 'active'
+            ? 'Loan activated successfully'
+            : 'Loan updated successfully';
+
+        return ApiResponse::success(new LoanResource($model), $message);
     }
 
     /**
