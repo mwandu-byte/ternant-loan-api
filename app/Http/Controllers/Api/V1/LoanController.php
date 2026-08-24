@@ -6,7 +6,6 @@ use App\Http\Requests\Api\V1\Loan\StoreLoanRequest;
 use App\Http\Requests\Api\V1\Loan\UpdateLoanRequest;
 use App\Http\Resources\Api\V1\LoanResource;
 use App\Http\Responses\ApiResponse;
-use App\Models\Customer;
 use App\Services\Loan\LoanService;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\QueryParameter;
@@ -15,12 +14,12 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Manage loans issued to a customer.
+ * Manage loans.
  *
- * Loans are a nested resource under Customer: every endpoint operates
- * within the scope of a single `{customer}`. Requesting a loan ID that
- * belongs to a different customer behaves identically to requesting an
- * ID that does not exist at all — both return 404 "Loan not found."
+ * Loans are a top-level resource. Each loan belongs to a customer via
+ * its `customer_id`, but the API does not nest loan endpoints under a
+ * customer route — `customer_id` is supplied in the request body when
+ * creating a loan, and may be used as a query filter when listing.
  *
  * The interest rate, interest amount, total amount, reference number,
  * and due date are calculated automatically from the configured
@@ -36,7 +35,8 @@ use Illuminate\Http\Request;
  * `interest_rate` when no discount was requested, or to
  * `discount_rate` when one was). A loan may optionally be linked to
  * existing collateral records already belonging to the same customer
- * — no collateral is created here.
+ * — no collateral is created here. `customer_id` is immutable once a
+ * loan is created and can never be changed via update.
  *
  * All endpoints return the application's standard envelope:
  * `{"success": bool, "message": string, "data"?: object|null, "errors"?: object}`.
@@ -46,7 +46,9 @@ use Illuminate\Http\Request;
 #[Group('Loans')]
 class LoanController extends Controller
 {
-    private const LOAN_SCHEMA = 'array{id: int, customer_id: int, reference_no: string, principal_amount: string, interest_rate: string, interest_amount: string, total_amount: string, has_discount: bool, discount_rate: string|null, applied_interest_rate: string, repayment_frequency: string, repayment_term: int, start_date: string, due_date: string, status: string, notes: string|null, collaterals: array, created_at: string, updated_at: string}';
+    private const CUSTOMER_SCHEMA = 'array{id: int, full_name: string, phone: string, email: string|null, identification_type: string, identification_number: string, gender: string|null, address: string, photo_url: string|null, status: string, created_at: string, updated_at: string}';
+
+    private const LOAN_SCHEMA = 'array{id: int, customer_id: int, customer: '.self::CUSTOMER_SCHEMA.', reference_no: string, principal_amount: string, interest_rate: string, interest_amount: string, total_amount: string, has_discount: bool, discount_rate: string|null, applied_interest_rate: string, repayment_frequency: string, repayment_term: int, start_date: string, due_date: string, status: string, notes: string|null, collaterals: array, created_at: string, updated_at: string}';
 
     private const UNAUTHENTICATED_SCHEMA = 'array{success: false, message: string}';
 
@@ -63,13 +65,15 @@ class LoanController extends Controller
     }
 
     /**
-     * List a customer's loans
+     * List loans
      *
-     * Returns a paginated, searchable, filterable list of loans
-     * belonging to the given customer.
+     * Returns a paginated, searchable, filterable list of loans across
+     * all customers. Pass `customer_id` to scope the results to a
+     * single customer.
      */
     #[QueryParameter('page', description: 'Page number.', type: 'integer', default: 1)]
     #[QueryParameter('per_page', description: 'Results per page (max 100).', type: 'integer', default: 15)]
+    #[QueryParameter('customer_id', description: 'Filter by customer.', type: 'integer', example: 10)]
     #[QueryParameter('search', description: 'Matches against reference_no.', type: 'string')]
     #[QueryParameter('status', description: 'Filter by status.', type: 'string', example: 'active')]
     #[Response(200, description: 'Loans retrieved.', type: 'array{success: true, message: string, data: array{loans: '.self::LOAN_SCHEMA.'[], pagination: array{current_page: int, per_page: int, total: int, last_page: int}}}')]
@@ -81,14 +85,19 @@ class LoanController extends Controller
         'success' => false,
         'message' => 'You do not have permission to perform this action.',
     ]])]
-    #[Response(404, description: 'Customer does not exist.', type: self::NOT_FOUND_SCHEMA, examples: [[
+    #[Response(422, description: 'The customer_id filter does not reference an existing customer.', type: self::VALIDATION_ERROR_SCHEMA, examples: [[
         'success' => false,
-        'message' => 'The requested resource was not found.',
+        'message' => 'The given data was invalid.',
+        'errors' => ['customer_id' => ['The selected customer id is invalid.']],
     ]])]
-    public function index(Customer $customer, Request $request): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $paginator = $this->loanService->list($customer, $request->only([
-            'search', 'status', 'per_page', 'page',
+        $request->validate([
+            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
+        ]);
+
+        $paginator = $this->loanService->list($request->only([
+            'customer_id', 'search', 'status', 'per_page', 'page',
         ]));
 
         return ApiResponse::success([
@@ -105,9 +114,10 @@ class LoanController extends Controller
     /**
      * Create a loan
      *
-     * Issues a new loan against the given customer. The interest rate,
-     * interest amount, total amount, reference number, and due date are
-     * calculated automatically and cannot be supplied directly. Pass
+     * Issues a new loan for the customer identified by `customer_id`
+     * in the request body. The interest rate, interest amount, total
+     * amount, reference number, and due date are calculated
+     * automatically and cannot be supplied directly. Pass
      * `has_discount: true` and a `discount_rate` to apply a one-off
      * discounted rate to this loan only; the global Interest Rule
      * configuration is never modified.
@@ -121,18 +131,14 @@ class LoanController extends Controller
         'success' => false,
         'message' => 'You do not have permission to perform this action.',
     ]])]
-    #[Response(404, description: 'Customer does not exist.', type: self::NOT_FOUND_SCHEMA, examples: [[
-        'success' => false,
-        'message' => 'The requested resource was not found.',
-    ]])]
-    #[Response(422, description: 'Validation failed, principal amount is outside the configured lending range, or selected collateral does not belong to this customer.', type: self::VALIDATION_ERROR_SCHEMA, examples: [[
+    #[Response(422, description: 'Validation failed, customer_id does not reference an existing customer, principal amount is outside the configured lending range, or selected collateral does not belong to the selected customer.', type: self::VALIDATION_ERROR_SCHEMA, examples: [[
         'success' => false,
         'message' => 'The given data was invalid.',
-        'errors' => ['repayment_term' => ['The repayment term field is required.']],
+        'errors' => ['customer_id' => ['The selected customer id is invalid.']],
     ]])]
-    public function store(Customer $customer, StoreLoanRequest $request): JsonResponse
+    public function store(StoreLoanRequest $request): JsonResponse
     {
-        $loan = $this->loanService->create($customer, $request->validated());
+        $loan = $this->loanService->create($request->validated());
 
         return ApiResponse::success(
             new LoanResource($loan),
@@ -144,8 +150,8 @@ class LoanController extends Controller
     /**
      * Show a loan
      *
-     * Returns a single loan belonging to the given customer, including
-     * its associated collateral records.
+     * Returns a single loan, including its owning customer and
+     * associated collateral records.
      */
     #[Response(200, description: 'Loan retrieved.', type: 'array{success: true, message: string, data: '.self::LOAN_SCHEMA.'}')]
     #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[
@@ -156,29 +162,30 @@ class LoanController extends Controller
         'success' => false,
         'message' => 'You do not have permission to perform this action.',
     ]])]
-    #[Response(404, description: 'Customer does not exist, loan does not exist, or loan belongs to a different customer.', type: self::NOT_FOUND_SCHEMA, examples: [[
+    #[Response(404, description: 'Loan does not exist.', type: self::NOT_FOUND_SCHEMA, examples: [[
         'success' => false,
         'message' => 'Loan not found.',
     ]])]
-    public function show(Customer $customer, int $loan): JsonResponse
+    public function show(int $loan): JsonResponse
     {
-        $loan = $this->loanService->findForCustomer($customer, $loan);
+        $model = $this->loanService->find($loan);
 
-        return ApiResponse::success(new LoanResource($loan), 'Loan retrieved successfully');
+        return ApiResponse::success(new LoanResource($model), 'Loan retrieved successfully');
     }
 
     /**
      * Update a loan
      *
-     * Updates a loan belonging to the given customer. Editable fields
-     * depend on the loan's current status: pending loans allow full
-     * editing of the repayment schedule and collateral selection;
-     * active loans allow only `notes` and a status transition to
-     * `completed` or `cancelled`; completed/cancelled loans cannot be
-     * modified at all. The financial fields calculated at creation
-     * (`reference_no`, `principal_amount`, `interest_rate`,
+     * Updates a loan. Editable fields depend on the loan's current
+     * status: pending loans allow full editing of the repayment
+     * schedule and collateral selection; active loans allow only
+     * `notes` and a status transition to `completed` or `cancelled`;
+     * completed/cancelled loans cannot be modified at all. The
+     * financial fields calculated at creation (`customer_id`,
+     * `reference_no`, `principal_amount`, `interest_rate`,
      * `interest_amount`, `total_amount`, `has_discount`,
-     * `discount_rate`, `applied_interest_rate`) can never be changed.
+     * `discount_rate`, `applied_interest_rate`) can never be changed —
+     * a loan can never be transferred to a different customer.
      */
     #[Response(200, description: 'Loan updated.', type: 'array{success: true, message: string, data: '.self::LOAN_SCHEMA.'}')]
     #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[
@@ -189,7 +196,7 @@ class LoanController extends Controller
         'success' => false,
         'message' => 'You do not have permission to perform this action.',
     ]])]
-    #[Response(404, description: 'Customer does not exist, loan does not exist, or loan belongs to a different customer.', type: self::NOT_FOUND_SCHEMA, examples: [[
+    #[Response(404, description: 'Loan does not exist.', type: self::NOT_FOUND_SCHEMA, examples: [[
         'success' => false,
         'message' => 'Loan not found.',
     ]])]
@@ -197,14 +204,14 @@ class LoanController extends Controller
         'success' => false,
         'message' => 'This loan can no longer be modified.',
     ]])]
-    #[Response(422, description: 'Validation failed, an immutable field was supplied for an active loan, an invalid status transition was requested, or selected collateral does not belong to this customer.', type: self::VALIDATION_ERROR_SCHEMA, examples: [[
+    #[Response(422, description: 'Validation failed, an immutable field was supplied for an active loan, an invalid status transition was requested, or selected collateral does not belong to this loan\'s customer.', type: self::VALIDATION_ERROR_SCHEMA, examples: [[
         'success' => false,
         'message' => 'The given data was invalid.',
         'errors' => ['status' => ["Cannot transition loan status from 'pending' to 'completed'."]],
     ]])]
-    public function update(Customer $customer, UpdateLoanRequest $request, int $loan): JsonResponse
+    public function update(UpdateLoanRequest $request, int $loan): JsonResponse
     {
-        $model = $this->loanService->findForCustomer($customer, $loan);
+        $model = $this->loanService->find($loan);
         $model = $this->loanService->update($model, $request->validated());
 
         return ApiResponse::success(new LoanResource($model), 'Loan updated successfully');
@@ -232,7 +239,7 @@ class LoanController extends Controller
         'success' => false,
         'message' => 'You do not have permission to perform this action.',
     ]])]
-    #[Response(404, description: 'Customer does not exist, loan does not exist, or loan belongs to a different customer.', type: self::NOT_FOUND_SCHEMA, examples: [[
+    #[Response(404, description: 'Loan does not exist.', type: self::NOT_FOUND_SCHEMA, examples: [[
         'success' => false,
         'message' => 'Loan not found.',
     ]])]
@@ -240,9 +247,9 @@ class LoanController extends Controller
         'success' => false,
         'message' => 'This loan can no longer be modified.',
     ]])]
-    public function destroy(Customer $customer, int $loan): JsonResponse
+    public function destroy(int $loan): JsonResponse
     {
-        $model = $this->loanService->findForCustomer($customer, $loan);
+        $model = $this->loanService->find($loan);
         $message = $this->loanService->delete($model);
 
         return ApiResponse::success(null, $message);

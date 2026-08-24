@@ -76,9 +76,10 @@ class LoanCreateTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function validPayload(array $overrides = []): array
+    private function validPayload(int $customerId, array $overrides = []): array
     {
         return array_merge([
+            'customer_id' => $customerId,
             'principal_amount' => 1000000,
             'repayment_frequency' => 'monthly',
             'repayment_term' => 12,
@@ -92,8 +93,8 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(),
+            '/api/v1/loans',
+            $this->validPayload($customer->id),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -112,8 +113,8 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['status' => 'active']),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['status' => 'active']),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -127,8 +128,8 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['status' => 'completed']),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['status' => 'completed']),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -141,12 +142,41 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['principal_amount' => '']),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['principal_amount' => '']),
             ['Authorization' => "Bearer {$token}"],
         );
 
         $response->assertStatus(422)->assertJsonValidationErrors(['principal_amount']);
+    }
+
+    public function test_creating_a_loan_requires_customer_id(): void
+    {
+        $token = $this->actingUserToken(['loans.create']);
+
+        $payload = $this->validPayload(1);
+        unset($payload['customer_id']);
+
+        $response = $this->postJson(
+            '/api/v1/loans',
+            $payload,
+            ['Authorization' => "Bearer {$token}"],
+        );
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['customer_id']);
+    }
+
+    public function test_invalid_customer_id_is_rejected(): void
+    {
+        $token = $this->actingUserToken(['loans.create']);
+
+        $response = $this->postJson(
+            '/api/v1/loans',
+            $this->validPayload(999999),
+            ['Authorization' => "Bearer {$token}"],
+        );
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['customer_id']);
     }
 
     public function test_interest_rate_is_30_percent_for_principal_under_500000(): void
@@ -155,8 +185,8 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['principal_amount' => 499999.99]),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['principal_amount' => 499999.99]),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -171,8 +201,8 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['principal_amount' => 500000]),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['principal_amount' => 500000]),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -180,8 +210,8 @@ class LoanCreateTest extends TestCase
         $this->assertSame('22.00', $response->json('data.interest_rate'));
 
         $response2 = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['principal_amount' => 4000000]),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['principal_amount' => 4000000]),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -195,8 +225,8 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['principal_amount' => 1000000]),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['principal_amount' => 1000000]),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -210,8 +240,8 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['principal_amount' => 1000000]),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['principal_amount' => 1000000]),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -225,8 +255,8 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['principal_amount' => 4000000.01]),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['principal_amount' => 4000000.01]),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -242,8 +272,8 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['start_date' => '2026-01-15', 'repayment_term' => 6]),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['start_date' => '2026-01-15', 'repayment_term' => 6]),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -257,8 +287,8 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(),
+            '/api/v1/loans',
+            $this->validPayload($customer->id),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -272,14 +302,14 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $first = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(),
+            '/api/v1/loans',
+            $this->validPayload($customer->id),
             ['Authorization' => "Bearer {$token}"],
         )->json('data.reference_no');
 
         $second = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(),
+            '/api/v1/loans',
+            $this->validPayload($customer->id),
             ['Authorization' => "Bearer {$token}"],
         )->json('data.reference_no');
 
@@ -293,8 +323,8 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['collateral_ids' => [$collateral->id]]),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['collateral_ids' => [$collateral->id]]),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -310,28 +340,28 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['collateral_ids' => [$foreignCollateral->id]]),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['collateral_ids' => [$foreignCollateral->id]]),
             ['Authorization' => "Bearer {$token}"],
         );
 
         $response->assertStatus(422)->assertJsonValidationErrors(['collateral_ids']);
     }
 
-    public function test_customer_id_in_payload_is_ignored_and_taken_from_the_route(): void
+    public function test_loan_is_stored_with_the_correct_customer_id(): void
     {
         $customer = Customer::factory()->create();
-        $otherCustomer = Customer::factory()->create();
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            [...$this->validPayload(), 'customer_id' => $otherCustomer->id],
+            '/api/v1/loans',
+            $this->validPayload($customer->id),
             ['Authorization' => "Bearer {$token}"],
         );
 
         $response->assertStatus(201);
-        $this->assertSame($customer->id, $response->json('data.customer_id'));
+        $loanId = $response->json('data.id');
+        $this->assertDatabaseHas('loans', ['id' => $loanId, 'customer_id' => $customer->id]);
     }
 
     public function test_calculated_financial_fields_supplied_by_the_client_are_ignored(): void
@@ -340,9 +370,9 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
+            '/api/v1/loans',
             [
-                ...$this->validPayload(['principal_amount' => 1000000]),
+                ...$this->validPayload($customer->id, ['principal_amount' => 1000000]),
                 'reference_no' => 'LN-9999-999999',
                 'interest_rate' => 1,
                 'interest_amount' => 1,
@@ -362,10 +392,7 @@ class LoanCreateTest extends TestCase
     {
         $customer = Customer::factory()->create();
 
-        $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(),
-        );
+        $response = $this->postJson('/api/v1/loans', $this->validPayload($customer->id));
 
         $response->assertStatus(401)->assertJson([
             'success' => false,
@@ -379,8 +406,8 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken([]);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(),
+            '/api/v1/loans',
+            $this->validPayload($customer->id),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -390,33 +417,20 @@ class LoanCreateTest extends TestCase
         ]);
     }
 
-    public function test_creating_a_loan_for_a_nonexistent_customer_returns_404(): void
-    {
-        $token = $this->actingUserToken(['loans.create']);
-
-        $response = $this->postJson(
-            '/api/v1/customers/999999/loans',
-            $this->validPayload(),
-            ['Authorization' => "Bearer {$token}"],
-        );
-
-        $response->assertStatus(404);
-    }
-
     public function test_loan_response_does_not_expose_unrelated_information(): void
     {
         $customer = Customer::factory()->create();
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(),
+            '/api/v1/loans',
+            $this->validPayload($customer->id),
             ['Authorization' => "Bearer {$token}"],
         );
 
         $response->assertStatus(201);
         $this->assertEqualsCanonicalizing([
-            'id', 'customer_id', 'reference_no', 'principal_amount', 'interest_rate',
+            'id', 'customer_id', 'customer', 'reference_no', 'principal_amount', 'interest_rate',
             'interest_amount', 'total_amount', 'has_discount', 'discount_rate', 'applied_interest_rate',
             'repayment_frequency', 'repayment_term',
             'start_date', 'due_date', 'status', 'notes', 'collaterals', 'created_at', 'updated_at',
@@ -438,8 +452,8 @@ class LoanCreateTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['principal_amount' => 1000000]),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['principal_amount' => 1000000]),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -447,8 +461,8 @@ class LoanCreateTest extends TestCase
         $this->assertSame('22.00', $response->json('data.interest_rate'));
 
         $weeklyResponse = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['repayment_frequency' => 'weekly']),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['repayment_frequency' => 'weekly']),
             ['Authorization' => "Bearer {$token}"],
         );
 

@@ -48,7 +48,7 @@ class LoanDeleteTest extends TestCase
         $token = $this->actingUserToken(['loans.delete']);
 
         $response = $this->deleteJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             [],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -68,7 +68,7 @@ class LoanDeleteTest extends TestCase
         $token = $this->actingUserToken(['loans.delete']);
 
         $response = $this->deleteJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             [],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -88,7 +88,7 @@ class LoanDeleteTest extends TestCase
         $token = $this->actingUserToken(['loans.delete']);
 
         $response = $this->deleteJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             [],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -107,7 +107,7 @@ class LoanDeleteTest extends TestCase
         $token = $this->actingUserToken(['loans.delete']);
 
         $response = $this->deleteJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             [],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -123,7 +123,7 @@ class LoanDeleteTest extends TestCase
         $customer = Customer::factory()->create();
         $loan = Loan::factory()->create(['customer_id' => $customer->id]);
 
-        $response = $this->deleteJson("/api/v1/customers/{$customer->id}/loans/{$loan->id}");
+        $response = $this->deleteJson("/api/v1/loans/{$loan->id}");
 
         $response->assertStatus(401)->assertJson([
             'success' => false,
@@ -138,7 +138,7 @@ class LoanDeleteTest extends TestCase
         $token = $this->actingUserToken([]);
 
         $response = $this->deleteJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             [],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -152,11 +152,10 @@ class LoanDeleteTest extends TestCase
 
     public function test_deleting_a_nonexistent_loan_returns_404(): void
     {
-        $customer = Customer::factory()->create();
         $token = $this->actingUserToken(['loans.delete']);
 
         $response = $this->deleteJson(
-            "/api/v1/customers/{$customer->id}/loans/999999",
+            '/api/v1/loans/999999',
             [],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -165,25 +164,5 @@ class LoanDeleteTest extends TestCase
             'success' => false,
             'message' => 'Loan not found.',
         ]);
-    }
-
-    public function test_deleting_a_loan_belonging_to_a_different_customer_returns_404(): void
-    {
-        $customer = Customer::factory()->create();
-        $otherCustomer = Customer::factory()->create();
-        $loan = Loan::factory()->create(['customer_id' => $otherCustomer->id, 'status' => 'pending']);
-        $token = $this->actingUserToken(['loans.delete']);
-
-        $response = $this->deleteJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
-            [],
-            ['Authorization' => "Bearer {$token}"],
-        );
-
-        $response->assertStatus(404)->assertJson([
-            'success' => false,
-            'message' => 'Loan not found.',
-        ]);
-        $this->assertDatabaseHas('loans', ['id' => $loan->id]);
     }
 }

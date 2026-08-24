@@ -54,9 +54,10 @@ class LoanDiscountTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function validPayload(array $overrides = []): array
+    private function validPayload(int $customerId, array $overrides = []): array
     {
         return array_merge([
+            'customer_id' => $customerId,
             'principal_amount' => 1000000,
             'repayment_frequency' => 'monthly',
             'repayment_term' => 12,
@@ -73,8 +74,8 @@ class LoanDiscountTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(),
+            '/api/v1/loans',
+            $this->validPayload($customer->id),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -94,8 +95,8 @@ class LoanDiscountTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['has_discount' => true, 'discount_rate' => 20]),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['has_discount' => true, 'discount_rate' => 20]),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -117,8 +118,8 @@ class LoanDiscountTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['discount_rate' => 20]),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['discount_rate' => 20]),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -134,8 +135,8 @@ class LoanDiscountTest extends TestCase
         $token = $this->actingUserToken(['loans.create']);
 
         $response = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(['has_discount' => true]),
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['has_discount' => true]),
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -151,8 +152,8 @@ class LoanDiscountTest extends TestCase
         $token = $this->actingUserToken(['loans.create', 'loans.view']);
 
         $created = $this->postJson(
-            "/api/v1/customers/{$customer->id}/loans",
-            $this->validPayload(),
+            '/api/v1/loans',
+            $this->validPayload($customer->id),
             ['Authorization' => "Bearer {$token}"],
         );
         $created->assertStatus(201);
@@ -161,7 +162,7 @@ class LoanDiscountTest extends TestCase
         $rule->update(['interest_rate' => 99.00]);
 
         $refetched = $this->getJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loanId}",
+            "/api/v1/loans/{$loanId}",
             ['Authorization' => "Bearer {$token}"],
         );
 

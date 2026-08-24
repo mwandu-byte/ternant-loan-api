@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
@@ -9,6 +10,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $customer_id
+ * @property Customer $customer
  * @property string $reference_no
  * @property string $principal_amount
  * @property string $interest_rate
@@ -36,6 +38,7 @@ class LoanResource extends JsonResource
         return [
             'id' => $this->id,
             'customer_id' => $this->customer_id,
+            'customer' => new CustomerResource($this->whenLoaded('customer')),
             'reference_no' => $this->reference_no,
             'principal_amount' => $this->principal_amount,
             'interest_rate' => $this->interest_rate,

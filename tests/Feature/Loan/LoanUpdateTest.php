@@ -74,7 +74,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['start_date' => '2026-02-01', 'repayment_term' => 3],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -92,7 +92,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['collateral_ids' => [$collateral->id]],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -108,7 +108,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['status' => 'active'],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -124,7 +124,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['status' => 'cancelled'],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -140,7 +140,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['status' => 'completed'],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -155,7 +155,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['notes' => 'Customer requested a reminder call.'],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -171,7 +171,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['status' => 'completed'],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -187,7 +187,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['status' => 'cancelled'],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -203,7 +203,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['repayment_frequency' => 'monthly'],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -218,7 +218,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['repayment_term' => 6],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -233,7 +233,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['start_date' => '2026-03-01'],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -249,7 +249,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['collateral_ids' => [$collateral->id]],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -264,7 +264,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['notes' => 'Attempting a change.'],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -282,7 +282,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['notes' => 'Attempting a change.'],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -302,7 +302,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['collateral_ids' => [$foreignCollateral->id]],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -321,7 +321,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             [
                 'principal_amount' => 5000000,
                 'interest_rate' => 5,
@@ -349,7 +349,7 @@ class LoanUpdateTest extends TestCase
         $loan = Loan::factory()->create(['customer_id' => $customer->id]);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['notes' => 'x'],
         );
 
@@ -366,7 +366,7 @@ class LoanUpdateTest extends TestCase
         $token = $this->actingUserToken([]);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['notes' => 'x'],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -379,11 +379,10 @@ class LoanUpdateTest extends TestCase
 
     public function test_updating_a_nonexistent_loan_returns_404(): void
     {
-        $customer = Customer::factory()->create();
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/999999",
+            '/api/v1/loans/999999',
             ['notes' => 'x'],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -394,22 +393,21 @@ class LoanUpdateTest extends TestCase
         ]);
     }
 
-    public function test_updating_a_loan_belonging_to_a_different_customer_returns_404(): void
+    public function test_customer_id_cannot_be_changed_via_update(): void
     {
         $customer = Customer::factory()->create();
         $otherCustomer = Customer::factory()->create();
-        $loan = Loan::factory()->create(['customer_id' => $otherCustomer->id]);
+        $loan = Loan::factory()->create(['customer_id' => $customer->id]);
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
-            ['notes' => 'x'],
+            "/api/v1/loans/{$loan->id}",
+            ['customer_id' => $otherCustomer->id, 'notes' => 'x'],
             ['Authorization' => "Bearer {$token}"],
         );
 
-        $response->assertStatus(404)->assertJson([
-            'success' => false,
-            'message' => 'Loan not found.',
-        ]);
+        $response->assertStatus(200);
+        $this->assertSame($customer->id, $response->json('data.customer_id'));
+        $this->assertDatabaseHas('loans', ['id' => $loan->id, 'customer_id' => $customer->id]);
     }
 }

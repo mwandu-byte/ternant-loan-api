@@ -49,7 +49,7 @@ class LoanShowTest extends TestCase
         $token = $this->actingUserToken(['loans.view']);
 
         $response = $this->getJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -57,6 +57,7 @@ class LoanShowTest extends TestCase
             'success' => true,
             'data' => ['id' => $loan->id, 'customer_id' => $customer->id],
         ]);
+        $this->assertSame($customer->id, $response->json('data.customer.id'));
     }
 
     public function test_show_includes_synced_collaterals(): void
@@ -68,7 +69,7 @@ class LoanShowTest extends TestCase
         $token = $this->actingUserToken(['loans.view']);
 
         $response = $this->getJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -78,10 +79,9 @@ class LoanShowTest extends TestCase
 
     public function test_unauthenticated_request_cannot_view_a_loan(): void
     {
-        $customer = Customer::factory()->create();
-        $loan = Loan::factory()->create(['customer_id' => $customer->id]);
+        $loan = Loan::factory()->create();
 
-        $response = $this->getJson("/api/v1/customers/{$customer->id}/loans/{$loan->id}");
+        $response = $this->getJson("/api/v1/loans/{$loan->id}");
 
         $response->assertStatus(401)->assertJson([
             'success' => false,
@@ -91,12 +91,11 @@ class LoanShowTest extends TestCase
 
     public function test_user_without_view_permission_cannot_view_a_loan(): void
     {
-        $customer = Customer::factory()->create();
-        $loan = Loan::factory()->create(['customer_id' => $customer->id]);
+        $loan = Loan::factory()->create();
         $token = $this->actingUserToken([]);
 
         $response = $this->getJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            "/api/v1/loans/{$loan->id}",
             ['Authorization' => "Bearer {$token}"],
         );
 
@@ -108,29 +107,10 @@ class LoanShowTest extends TestCase
 
     public function test_viewing_a_nonexistent_loan_returns_404_with_loan_not_found_message(): void
     {
-        $customer = Customer::factory()->create();
         $token = $this->actingUserToken(['loans.view']);
 
         $response = $this->getJson(
-            "/api/v1/customers/{$customer->id}/loans/999999",
-            ['Authorization' => "Bearer {$token}"],
-        );
-
-        $response->assertStatus(404)->assertJson([
-            'success' => false,
-            'message' => 'Loan not found.',
-        ]);
-    }
-
-    public function test_customer_cannot_access_a_loan_belonging_to_another_customer(): void
-    {
-        $customer = Customer::factory()->create();
-        $otherCustomer = Customer::factory()->create();
-        $loan = Loan::factory()->create(['customer_id' => $otherCustomer->id]);
-        $token = $this->actingUserToken(['loans.view']);
-
-        $response = $this->getJson(
-            "/api/v1/customers/{$customer->id}/loans/{$loan->id}",
+            '/api/v1/loans/999999',
             ['Authorization' => "Bearer {$token}"],
         );
 

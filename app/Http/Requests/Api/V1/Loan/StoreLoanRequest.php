@@ -20,6 +20,7 @@ class StoreLoanRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'customer_id' => ['required', 'integer', 'exists:customers,id'],
             'principal_amount' => ['required', 'numeric', 'min:0.01'],
             'repayment_frequency' => ['required', 'string', Rule::in(RepaymentFrequency::query()->where('status', 'active')->pluck('code'))],
             'repayment_term' => ['required', 'integer', Rule::in(RepaymentTerm::query()->where('status', 'active')->pluck('value'))],

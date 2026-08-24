@@ -34,9 +34,13 @@ class LoanService
     /**
      * @param  array<string, mixed>  $filters
      */
-    public function list(Customer $customer, array $filters): LengthAwarePaginator
+    public function list(array $filters): LengthAwarePaginator
     {
-        $query = $customer->loans()->with('collaterals');
+        $query = Loan::query()->with(['customer', 'collaterals']);
+
+        if (! empty($filters['customer_id'])) {
+            $query->where('customer_id', $filters['customer_id']);
+        }
 
         if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
@@ -54,9 +58,9 @@ class LoanService
         return $query->paginate($perPage, ['*'], 'page', $page);
     }
 
-    public function findForCustomer(Customer $customer, int $id): Loan
+    public function find(int $id): Loan
     {
-        $loan = $customer->loans()->with('collaterals')->find($id);
+        $loan = Loan::with(['customer', 'collaterals'])->find($id);
 
         if ($loan === null) {
             throw new LoanNotFoundException;
@@ -68,8 +72,9 @@ class LoanService
     /**
      * @param  array<string, mixed>  $data
      */
-    public function create(Customer $customer, array $data): Loan
+    public function create(array $data): Loan
     {
+        $customer = Customer::findOrFail($data['customer_id']);
         $principal = (float) $data['principal_amount'];
 
         $this->loanAmountConfigurationService->assertWithinRange($principal);
@@ -124,7 +129,7 @@ class LoanService
                         $loan->collaterals()->sync($collateralIds);
                     }
 
-                    return $loan->load('collaterals');
+                    return $loan->load(['customer', 'collaterals']);
                 });
             } catch (QueryException $e) {
                 $attempt++;
@@ -200,7 +205,7 @@ class LoanService
 
             $loan->update($updateData);
 
-            return $loan->refresh()->load('collaterals');
+            return $loan->refresh()->load(['customer', 'collaterals']);
         });
     }
 
