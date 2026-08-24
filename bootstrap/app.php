@@ -23,6 +23,7 @@ use Spatie\Permission\Exceptions\UnauthorizedException as PermissionUnauthorized
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -99,6 +100,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (NotFoundHttpException $e, Request $request) {
             if ($request->is('api/*')) {
                 return ApiResponse::error('The requested resource was not found.', 404);
+            }
+        });
+
+        $exceptions->render(function (MethodNotAllowedHttpException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error('This HTTP method is not supported for this route.', 405);
             }
         });
 
