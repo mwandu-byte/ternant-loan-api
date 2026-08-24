@@ -4,6 +4,9 @@ namespace Tests\Feature\Loan;
 
 use App\Models\Collateral;
 use App\Models\Customer;
+use App\Models\InterestRule;
+use App\Models\RepaymentFrequency;
+use App\Models\RepaymentTerm;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
@@ -21,6 +24,35 @@ class LoanCreateTest extends TestCase
         parent::setUp();
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $this->seedDefaultLoanConfiguration();
+    }
+
+    /**
+     * Seed the interest rules, repayment frequency, and repayment terms
+     * that this test file's assertions are written against. The global
+     * LoanAmountConfiguration needs no seeding here: the table's own
+     * migration already inserts a permissive default row (min 0, max
+     * null) that never blocks these tests.
+     */
+    private function seedDefaultLoanConfiguration(): void
+    {
+        InterestRule::factory()->create([
+            'minimum_amount' => 0, 'maximum_amount' => 499999.99, 'interest_rate' => 30.00, 'status' => 'active',
+        ]);
+        InterestRule::factory()->create([
+            'minimum_amount' => 500000, 'maximum_amount' => 4000000, 'interest_rate' => 22.00, 'status' => 'active',
+        ]);
+
+        RepaymentFrequency::factory()->create([
+            'name' => 'Monthly', 'code' => 'monthly', 'interval_value' => 1, 'interval_unit' => 'month', 'status' => 'active',
+        ]);
+
+        foreach ([3, 6, 12] as $months) {
+            RepaymentTerm::factory()->create([
+                'name' => "{$months} Months", 'value' => $months, 'unit' => 'months', 'status' => 'active',
+            ]);
+        }
     }
 
     /**
@@ -385,8 +417,41 @@ class LoanCreateTest extends TestCase
         $response->assertStatus(201);
         $this->assertEqualsCanonicalizing([
             'id', 'customer_id', 'reference_no', 'principal_amount', 'interest_rate',
-            'interest_amount', 'total_amount', 'repayment_frequency', 'repayment_term',
+            'interest_amount', 'total_amount', 'has_discount', 'discount_rate', 'applied_interest_rate',
+            'repayment_frequency', 'repayment_term',
             'start_date', 'due_date', 'status', 'notes', 'collaterals', 'created_at', 'updated_at',
         ], array_keys($response->json('data')));
+    }
+
+    public function test_inactive_interest_rule_and_frequency_are_never_selected_for_a_new_loan(): void
+    {
+        // An inactive rule overlapping an active one is allowed (only
+        // active ranges are checked for overlap) and must never win.
+        InterestRule::factory()->inactive()->create([
+            'minimum_amount' => 0, 'maximum_amount' => 4000000, 'interest_rate' => 99.00,
+        ]);
+        RepaymentFrequency::factory()->inactive()->create([
+            'name' => 'Weekly', 'code' => 'weekly', 'interval_value' => 1, 'interval_unit' => 'week',
+        ]);
+
+        $customer = Customer::factory()->create();
+        $token = $this->actingUserToken(['loans.create']);
+
+        $response = $this->postJson(
+            "/api/v1/customers/{$customer->id}/loans",
+            $this->validPayload(['principal_amount' => 1000000]),
+            ['Authorization' => "Bearer {$token}"],
+        );
+
+        $response->assertStatus(201);
+        $this->assertSame('22.00', $response->json('data.interest_rate'));
+
+        $weeklyResponse = $this->postJson(
+            "/api/v1/customers/{$customer->id}/loans",
+            $this->validPayload(['repayment_frequency' => 'weekly']),
+            ['Authorization' => "Bearer {$token}"],
+        );
+
+        $weeklyResponse->assertStatus(422)->assertJsonValidationErrors(['repayment_frequency']);
     }
 }

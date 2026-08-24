@@ -3,7 +3,13 @@
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CollateralController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\GracePeriodController;
+use App\Http\Controllers\Api\V1\InterestRuleController;
+use App\Http\Controllers\Api\V1\LoanAmountConfigurationController;
 use App\Http\Controllers\Api\V1\LoanController;
+use App\Http\Controllers\Api\V1\PenaltyRuleController;
+use App\Http\Controllers\Api\V1\RepaymentFrequencyController;
+use App\Http\Controllers\Api\V1\RepaymentTermController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
@@ -43,6 +49,50 @@ Route::middleware('auth:api')->prefix('customers')->group(function () {
     });
 });
 
+Route::middleware('auth:api')->prefix('loan-configurations')->group(function () {
+    Route::prefix('interest-rules')->group(function () {
+        Route::get('/', [InterestRuleController::class, 'index'])->middleware('permission:loan-configurations.view');
+        Route::post('/', [InterestRuleController::class, 'store'])->middleware('permission:loan-configurations.create');
+        Route::get('{rule}', [InterestRuleController::class, 'show'])->middleware('permission:loan-configurations.view');
+        Route::put('{rule}', [InterestRuleController::class, 'update'])->middleware('permission:loan-configurations.update');
+        Route::delete('{rule}', [InterestRuleController::class, 'destroy'])->middleware('permission:loan-configurations.delete');
+    });
+
+    Route::prefix('repayment-frequencies')->group(function () {
+        Route::get('/', [RepaymentFrequencyController::class, 'index'])->middleware('permission:loan-configurations.view');
+        Route::post('/', [RepaymentFrequencyController::class, 'store'])->middleware('permission:loan-configurations.create');
+        Route::get('{frequency}', [RepaymentFrequencyController::class, 'show'])->middleware('permission:loan-configurations.view');
+        Route::put('{frequency}', [RepaymentFrequencyController::class, 'update'])->middleware('permission:loan-configurations.update');
+        Route::delete('{frequency}', [RepaymentFrequencyController::class, 'destroy'])->middleware('permission:loan-configurations.delete');
+    });
+
+    Route::prefix('repayment-terms')->group(function () {
+        Route::get('/', [RepaymentTermController::class, 'index'])->middleware('permission:loan-configurations.view');
+        Route::post('/', [RepaymentTermController::class, 'store'])->middleware('permission:loan-configurations.create');
+        Route::get('{term}', [RepaymentTermController::class, 'show'])->middleware('permission:loan-configurations.view');
+        Route::put('{term}', [RepaymentTermController::class, 'update'])->middleware('permission:loan-configurations.update');
+        Route::delete('{term}', [RepaymentTermController::class, 'destroy'])->middleware('permission:loan-configurations.delete');
+    });
+
+    Route::prefix('grace-period')->group(function () {
+        Route::get('/', [GracePeriodController::class, 'show'])->middleware('permission:loan-configurations.view');
+        Route::put('/', [GracePeriodController::class, 'update'])->middleware('permission:loan-configurations.update');
+    });
+
+    Route::prefix('penalty-rules')->group(function () {
+        Route::get('/', [PenaltyRuleController::class, 'index'])->middleware('permission:loan-configurations.view');
+        Route::post('/', [PenaltyRuleController::class, 'store'])->middleware('permission:loan-configurations.create');
+        Route::get('{rule}', [PenaltyRuleController::class, 'show'])->middleware('permission:loan-configurations.view');
+        Route::put('{rule}', [PenaltyRuleController::class, 'update'])->middleware('permission:loan-configurations.update');
+        Route::delete('{rule}', [PenaltyRuleController::class, 'destroy'])->middleware('permission:loan-configurations.delete');
+    });
+
+    Route::prefix('loan-amount')->group(function () {
+        Route::get('/', [LoanAmountConfigurationController::class, 'show'])->middleware('permission:loan-configurations.view');
+        Route::put('/', [LoanAmountConfigurationController::class, 'update'])->middleware('permission:loan-configurations.update');
+    });
+});
+
 // ---------------------------------------------------------------------------
 // Future modules — not implemented yet. Each will be its own route group,
 // behind `auth:api` plus the relevant `permission:*` middleware, once its
@@ -55,6 +105,5 @@ Route::middleware('auth:api')->prefix('customers')->group(function () {
 // Route::middleware(['auth:api', 'permission:penalties.view'])->prefix('penalties')->group(...);
 // Route::middleware(['auth:api', 'permission:reports.view'])->prefix('reports')->group(...);
 // Route::middleware(['auth:api', 'permission:dashboard.view'])->prefix('dashboard')->group(...);
-// Route::middleware(['auth:api', 'permission:configuration.view'])->prefix('configuration')->group(...);
 // Route::middleware(['auth:api', 'permission:users.view'])->prefix('users')->group(...);
 // Route::middleware(['auth:api', 'permission:roles.view'])->prefix('roles')->group(...);

@@ -14,6 +14,9 @@ use Illuminate\Support\Carbon;
  * @property string $interest_rate
  * @property string $interest_amount
  * @property string $total_amount
+ * @property bool $has_discount
+ * @property string|null $discount_rate
+ * @property string $applied_interest_rate
  * @property string $repayment_frequency
  * @property int $repayment_term
  * @property Carbon $start_date
@@ -38,6 +41,9 @@ class LoanResource extends JsonResource
             'interest_rate' => $this->interest_rate,
             'interest_amount' => $this->interest_amount,
             'total_amount' => $this->total_amount,
+            'has_discount' => $this->has_discount,
+            'discount_rate' => $this->discount_rate,
+            'applied_interest_rate' => $this->applied_interest_rate,
             'repayment_frequency' => $this->repayment_frequency,
             'repayment_term' => $this->repayment_term,
             'start_date' => $this->start_date?->toDateString(),

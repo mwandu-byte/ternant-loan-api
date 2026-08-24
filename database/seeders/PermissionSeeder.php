@@ -57,6 +57,11 @@ class PermissionSeeder extends Seeder
             'configuration.view',
             'configuration.update',
 
+            'loan-configurations.view',
+            'loan-configurations.create',
+            'loan-configurations.update',
+            'loan-configurations.delete',
+
             'users.view',
             'users.create',
             'users.update',

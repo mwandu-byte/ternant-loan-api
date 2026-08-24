@@ -1,0 +1,91 @@
+<?php
+
+namespace Tests\Feature\LoanConfiguration;
+
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
+use Tests\TestCase;
+
+class RepaymentTermCreateTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
+    /**
+     * @param  array<int, string>  $permissions
+     */
+    private function actingUserToken(array $permissions): string
+    {
+        foreach ($permissions as $permission) {
+            Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'api']);
+        }
+
+        $role = Role::create(['name' => 'test-role-'.uniqid(), 'guard_name' => 'api']);
+        $role->givePermissionTo($permissions);
+
+        $user = User::factory()->create();
+        $user->assignRole($role);
+
+        return JWTAuth::fromUser($user);
+    }
+
+    public function test_authorized_user_can_create_a_repayment_term(): void
+    {
+        $token = $this->actingUserToken(['loan-configurations.create']);
+
+        $response = $this->postJson(
+            '/api/v1/loan-configurations/repayment-terms',
+            ['name' => '4 Months', 'value' => 4, 'unit' => 'months'],
+            ['Authorization' => "Bearer {$token}"],
+        );
+
+        $response->assertStatus(201)->assertJson(['success' => true]);
+        $this->assertSame('active', $response->json('data.status'));
+        $this->assertDatabaseHas('repayment_terms', ['value' => 4, 'status' => 'active']);
+    }
+
+    public function test_value_is_required(): void
+    {
+        $token = $this->actingUserToken(['loan-configurations.create']);
+
+        $response = $this->postJson(
+            '/api/v1/loan-configurations/repayment-terms',
+            ['name' => 'Invalid', 'unit' => 'months'],
+            ['Authorization' => "Bearer {$token}"],
+        );
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['value']);
+    }
+
+    public function test_unauthenticated_request_cannot_create_a_repayment_term(): void
+    {
+        $response = $this->postJson('/api/v1/loan-configurations/repayment-terms', [
+            'name' => '4 Months', 'value' => 4, 'unit' => 'months',
+        ]);
+
+        $response->assertStatus(401);
+    }
+
+    public function test_user_without_create_permission_cannot_create_a_repayment_term(): void
+    {
+        $token = $this->actingUserToken([]);
+
+        $response = $this->postJson(
+            '/api/v1/loan-configurations/repayment-terms',
+            ['name' => '4 Months', 'value' => 4, 'unit' => 'months'],
+            ['Authorization' => "Bearer {$token}"],
+        );
+
+        $response->assertStatus(403);
+    }
+}

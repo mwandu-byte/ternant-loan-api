@@ -5,6 +5,8 @@ namespace Tests\Feature\Loan;
 use App\Models\Collateral;
 use App\Models\Customer;
 use App\Models\Loan;
+use App\Models\RepaymentFrequency;
+use App\Models\RepaymentTerm;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
@@ -22,6 +24,25 @@ class LoanUpdateTest extends TestCase
         parent::setUp();
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $this->seedDefaultLoanConfiguration();
+    }
+
+    /**
+     * Seed the repayment frequency and repayment terms this test file's
+     * update payloads are validated against.
+     */
+    private function seedDefaultLoanConfiguration(): void
+    {
+        RepaymentFrequency::factory()->create([
+            'name' => 'Monthly', 'code' => 'monthly', 'interval_value' => 1, 'interval_unit' => 'month', 'status' => 'active',
+        ]);
+
+        foreach ([3, 6, 12] as $months) {
+            RepaymentTerm::factory()->create([
+                'name' => "{$months} Months", 'value' => $months, 'unit' => 'months', 'status' => 'active',
+            ]);
+        }
     }
 
     /**

@@ -2,11 +2,14 @@
 
 namespace App\Services\Loan;
 
-use App\Exceptions\Loan\LoanAmountOutOfRangeException;
 use App\Exceptions\Loan\LoanNotEditableException;
 use App\Exceptions\Loan\LoanNotFoundException;
 use App\Models\Customer;
 use App\Models\Loan;
+use App\Models\RepaymentFrequency;
+use App\Services\LoanConfiguration\InterestRuleService;
+use App\Services\LoanConfiguration\LoanAmountConfigurationService;
+use App\Services\LoanConfiguration\RepaymentFrequencyService;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
@@ -19,6 +22,14 @@ class LoanService
     private const MAX_REFERENCE_RETRIES = 3;
 
     private const TERMINAL_STATUSES = ['completed', 'cancelled'];
+
+    public function __construct(
+        private readonly LoanAmountConfigurationService $loanAmountConfigurationService,
+        private readonly InterestRuleService $interestRuleService,
+        private readonly RepaymentFrequencyService $repaymentFrequencyService,
+    ) {
+        //
+    }
 
     /**
      * @param  array<string, mixed>  $filters
@@ -60,14 +71,25 @@ class LoanService
     public function create(Customer $customer, array $data): Loan
     {
         $principal = (float) $data['principal_amount'];
-        $rate = $this->resolveInterestRate($principal);
-        $interestAmount = round($principal * $rate / 100, 2);
+
+        $this->loanAmountConfigurationService->assertWithinRange($principal);
+
+        $interestRule = $this->interestRuleService->resolveApplicableRule($principal);
+        $configuredRate = (float) $interestRule->interest_rate;
+
+        $hasDiscount = (bool) ($data['has_discount'] ?? false);
+        $discountRate = $hasDiscount ? (float) $data['discount_rate'] : null;
+        $appliedRate = $hasDiscount ? $discountRate : $configuredRate;
+
+        $interestAmount = round($principal * $appliedRate / 100, 2);
         $totalAmount = round($principal + $interestAmount, 2);
+
+        $frequency = $this->repaymentFrequencyService->resolveActiveByCode($data['repayment_frequency']);
 
         $dueDate = $this->calculateDueDate(
             Carbon::parse($data['start_date']),
             (int) $data['repayment_term'],
-            $data['repayment_frequency'],
+            $frequency,
         );
 
         $collateralIds = $data['collateral_ids'] ?? [];
@@ -78,14 +100,18 @@ class LoanService
         while (true) {
             try {
                 return DB::transaction(function () use (
-                    $customer, $data, $principal, $rate, $interestAmount, $totalAmount, $dueDate, $collateralIds
+                    $customer, $data, $principal, $configuredRate, $hasDiscount, $discountRate,
+                    $appliedRate, $interestAmount, $totalAmount, $dueDate, $collateralIds
                 ) {
                     $loan = $customer->loans()->create([
                         'reference_no' => $this->generateReferenceNo(),
                         'principal_amount' => $principal,
-                        'interest_rate' => $rate,
+                        'interest_rate' => $configuredRate,
                         'interest_amount' => $interestAmount,
                         'total_amount' => $totalAmount,
+                        'has_discount' => $hasDiscount,
+                        'discount_rate' => $discountRate,
+                        'applied_interest_rate' => $appliedRate,
                         'repayment_frequency' => $data['repayment_frequency'],
                         'repayment_term' => $data['repayment_term'],
                         'start_date' => $data['start_date'],
@@ -161,10 +187,14 @@ class LoanService
                 || array_key_exists('repayment_frequency', $data);
 
             if ($recalculateDueDate) {
+                $frequency = $this->repaymentFrequencyService->resolveActiveByCode(
+                    $data['repayment_frequency'] ?? $loan->repayment_frequency,
+                );
+
                 $updateData['due_date'] = $this->calculateDueDate(
                     Carbon::parse($data['start_date'] ?? $loan->start_date),
                     (int) ($data['repayment_term'] ?? $loan->repayment_term),
-                    $data['repayment_frequency'] ?? $loan->repayment_frequency,
+                    $frequency,
                 );
             }
 
@@ -191,26 +221,16 @@ class LoanService
         return 'Loan deleted successfully';
     }
 
-    private function resolveInterestRate(float $principal): float
+    private function calculateDueDate(Carbon $startDate, int $term, RepaymentFrequency $frequency): Carbon
     {
-        foreach (config('loan.interest_brackets') as $bracket) {
-            if (isset($bracket['max_exclusive']) && $principal < $bracket['max_exclusive']) {
-                return (float) $bracket['rate'];
-            }
+        $totalUnits = $frequency->interval_value * $term;
 
-            if (isset($bracket['max_inclusive']) && $principal <= $bracket['max_inclusive']) {
-                return (float) $bracket['rate'];
-            }
-        }
-
-        throw new LoanAmountOutOfRangeException;
-    }
-
-    private function calculateDueDate(Carbon $startDate, int $term, string $frequency): Carbon
-    {
-        return match ($frequency) {
-            'monthly' => $startDate->copy()->addMonths($term),
-            default => throw new InvalidArgumentException("Unsupported repayment frequency: {$frequency}"),
+        return match ($frequency->interval_unit) {
+            'day' => $startDate->copy()->addDays($totalUnits),
+            'week' => $startDate->copy()->addWeeks($totalUnits),
+            'month' => $startDate->copy()->addMonths($totalUnits),
+            'year' => $startDate->copy()->addYears($totalUnits),
+            default => throw new InvalidArgumentException("Unsupported repayment interval unit: {$frequency->interval_unit}"),
         };
     }
 

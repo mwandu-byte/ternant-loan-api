@@ -24,9 +24,19 @@ use Illuminate\Http\Request;
  *
  * The interest rate, interest amount, total amount, reference number,
  * and due date are calculated automatically from the configured
- * lending rules and cannot be supplied by the client. A loan may
- * optionally be linked to existing collateral records already
- * belonging to the same customer — no collateral is created here.
+ * lending rules (see the Loan Configuration group) and cannot be
+ * supplied by the client. `interest_rate` is always the rate resolved
+ * from the active Interest Rule matching the principal amount at
+ * creation time; it is never changed retroactively by later
+ * configuration changes. A loan may instead request a one-off
+ * discounted rate via `has_discount`/`discount_rate` — this never
+ * modifies the global Interest Rule, it only overrides the rate used
+ * for this specific loan. The rate actually used for the interest
+ * calculation is always exposed as `applied_interest_rate` (equal to
+ * `interest_rate` when no discount was requested, or to
+ * `discount_rate` when one was). A loan may optionally be linked to
+ * existing collateral records already belonging to the same customer
+ * — no collateral is created here.
  *
  * All endpoints return the application's standard envelope:
  * `{"success": bool, "message": string, "data"?: object|null, "errors"?: object}`.
@@ -36,7 +46,7 @@ use Illuminate\Http\Request;
 #[Group('Loans')]
 class LoanController extends Controller
 {
-    private const LOAN_SCHEMA = 'array{id: int, customer_id: int, reference_no: string, principal_amount: string, interest_rate: string, interest_amount: string, total_amount: string, repayment_frequency: string, repayment_term: int, start_date: string, due_date: string, status: string, notes: string|null, collaterals: array, created_at: string, updated_at: string}';
+    private const LOAN_SCHEMA = 'array{id: int, customer_id: int, reference_no: string, principal_amount: string, interest_rate: string, interest_amount: string, total_amount: string, has_discount: bool, discount_rate: string|null, applied_interest_rate: string, repayment_frequency: string, repayment_term: int, start_date: string, due_date: string, status: string, notes: string|null, collaterals: array, created_at: string, updated_at: string}';
 
     private const UNAUTHENTICATED_SCHEMA = 'array{success: false, message: string}';
 
@@ -97,7 +107,10 @@ class LoanController extends Controller
      *
      * Issues a new loan against the given customer. The interest rate,
      * interest amount, total amount, reference number, and due date are
-     * calculated automatically and cannot be supplied directly.
+     * calculated automatically and cannot be supplied directly. Pass
+     * `has_discount: true` and a `discount_rate` to apply a one-off
+     * discounted rate to this loan only; the global Interest Rule
+     * configuration is never modified.
      */
     #[Response(201, description: 'Loan created.', type: 'array{success: true, message: string, data: '.self::LOAN_SCHEMA.'}')]
     #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[
@@ -164,7 +177,8 @@ class LoanController extends Controller
      * `completed` or `cancelled`; completed/cancelled loans cannot be
      * modified at all. The financial fields calculated at creation
      * (`reference_no`, `principal_amount`, `interest_rate`,
-     * `interest_amount`, `total_amount`) can never be changed.
+     * `interest_amount`, `total_amount`, `has_discount`,
+     * `discount_rate`, `applied_interest_rate`) can never be changed.
      */
     #[Response(200, description: 'Loan updated.', type: 'array{success: true, message: string, data: '.self::LOAN_SCHEMA.'}')]
     #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[

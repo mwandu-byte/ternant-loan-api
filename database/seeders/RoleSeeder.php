@@ -35,6 +35,7 @@ class RoleSeeder extends Seeder
             'dashboard.view',
             'reports.view',
             'configuration.view', 'configuration.update',
+            'loan-configurations.view', 'loan-configurations.create', 'loan-configurations.update', 'loan-configurations.delete',
         ];
     }
 

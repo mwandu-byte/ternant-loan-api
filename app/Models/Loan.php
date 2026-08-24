@@ -20,6 +20,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
     'repayment_term',
     'start_date',
     'due_date',
+    'has_discount',
+    'discount_rate',
+    'applied_interest_rate',
     'status',
     'notes',
 ])]
@@ -41,6 +44,9 @@ class Loan extends Model
             'repayment_term' => 'integer',
             'start_date' => 'date',
             'due_date' => 'date',
+            'has_discount' => 'boolean',
+            'discount_rate' => 'decimal:2',
+            'applied_interest_rate' => 'decimal:2',
         ];
     }
 
