@@ -10,6 +10,7 @@ use App\Models\RepaymentFrequency;
 use App\Services\LoanConfiguration\InterestRuleService;
 use App\Services\LoanConfiguration\LoanAmountConfigurationService;
 use App\Services\LoanConfiguration\RepaymentFrequencyService;
+use App\Services\Payment\PaymentService;
 use App\Services\Repayment\RepaymentScheduleService;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -29,6 +30,7 @@ class LoanService
         private readonly InterestRuleService $interestRuleService,
         private readonly RepaymentFrequencyService $repaymentFrequencyService,
         private readonly RepaymentScheduleService $repaymentScheduleService,
+        private readonly PaymentService $paymentService,
     ) {
         //
     }
@@ -133,6 +135,7 @@ class LoanService
 
                     if ($loan->status === 'active') {
                         $this->repaymentScheduleService->generateForLoan($loan);
+                        $this->disburseForActivation($loan, $data);
                     }
 
                     return $loan->load(['customer', 'collaterals', 'repaymentSchedules']);
@@ -214,10 +217,12 @@ class LoanService
             $loan->update($updateData);
 
             // Only the non-active -> active transition generates a
-            // schedule. active -> active (unrelated field changes) and
-            // any other transition must never trigger generation.
+            // schedule and disburses the loan. active -> active
+            // (unrelated field changes) and any other transition must
+            // never trigger either.
             if ($oldStatus !== 'active' && $loan->status === 'active') {
                 $this->repaymentScheduleService->generateForLoan($loan);
+                $this->disburseForActivation($loan, $data);
             }
 
             return $loan->refresh()->load(['customer', 'collaterals', 'repaymentSchedules']);
@@ -239,6 +244,20 @@ class LoanService
         $loan->delete();
 
         return 'Loan deleted successfully';
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function disburseForActivation(Loan $loan, array $data): void
+    {
+        $this->paymentService->disburse($loan, [
+            'amount' => $loan->principal_amount,
+            'payment_date' => now()->toDateString(),
+            'payment_method' => $data['payment_method'] ?? config('payment.methods.0', 'cash'),
+            'reference_no' => $data['payment_reference_no'] ?? null,
+            'notes' => null,
+        ]);
     }
 
     private function calculateDueDate(Carbon $startDate, int $term, RepaymentFrequency $frequency): Carbon

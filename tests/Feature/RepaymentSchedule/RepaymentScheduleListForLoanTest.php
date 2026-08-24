@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature\Repayment;
+namespace Tests\Feature\RepaymentSchedule;
 
 use App\Models\Loan;
 use App\Models\RepaymentSchedule;
@@ -12,7 +12,7 @@ use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
-class RepaymentListForLoanTest extends TestCase
+class RepaymentScheduleListForLoanTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -46,9 +46,9 @@ class RepaymentListForLoanTest extends TestCase
         $loan = Loan::factory()->active()->create();
         RepaymentSchedule::factory()->create(['loan_id' => $loan->id, 'installment_number' => 1]);
         RepaymentSchedule::factory()->create(['loan_id' => $loan->id, 'installment_number' => 2]);
-        $token = $this->actingUserToken(['repayments.view']);
+        $token = $this->actingUserToken(['repayment-schedules.view']);
 
-        $response = $this->getJson("/api/v1/loans/{$loan->id}/repayments", ['Authorization' => "Bearer {$token}"]);
+        $response = $this->getJson("/api/v1/loans/{$loan->id}/repayment-schedules", ['Authorization' => "Bearer {$token}"]);
 
         $response->assertStatus(200)->assertJson(['success' => true]);
         $this->assertCount(2, $response->json('data.repayment_schedules'));
@@ -58,7 +58,7 @@ class RepaymentListForLoanTest extends TestCase
     {
         $loan = Loan::factory()->active()->create();
 
-        $response = $this->getJson("/api/v1/loans/{$loan->id}/repayments");
+        $response = $this->getJson("/api/v1/loans/{$loan->id}/repayment-schedules");
 
         $response->assertStatus(401);
     }
@@ -68,7 +68,7 @@ class RepaymentListForLoanTest extends TestCase
         $loan = Loan::factory()->active()->create();
         $token = $this->actingUserToken([]);
 
-        $response = $this->getJson("/api/v1/loans/{$loan->id}/repayments", ['Authorization' => "Bearer {$token}"]);
+        $response = $this->getJson("/api/v1/loans/{$loan->id}/repayment-schedules", ['Authorization' => "Bearer {$token}"]);
 
         $response->assertStatus(403)->assertJson([
             'success' => false,
@@ -78,9 +78,9 @@ class RepaymentListForLoanTest extends TestCase
 
     public function test_list_for_loan_returns_404_for_nonexistent_loan(): void
     {
-        $token = $this->actingUserToken(['repayments.view']);
+        $token = $this->actingUserToken(['repayment-schedules.view']);
 
-        $response = $this->getJson('/api/v1/loans/999999/repayments', ['Authorization' => "Bearer {$token}"]);
+        $response = $this->getJson('/api/v1/loans/999999/repayment-schedules', ['Authorization' => "Bearer {$token}"]);
 
         $response->assertStatus(404);
     }
@@ -92,9 +92,9 @@ class RepaymentListForLoanTest extends TestCase
         RepaymentSchedule::factory()->create(['loan_id' => $loan->id, 'installment_number' => 1]);
         RepaymentSchedule::factory()->create(['loan_id' => $otherLoan->id, 'installment_number' => 1]);
         RepaymentSchedule::factory()->create(['loan_id' => $otherLoan->id, 'installment_number' => 2]);
-        $token = $this->actingUserToken(['repayments.view']);
+        $token = $this->actingUserToken(['repayment-schedules.view']);
 
-        $response = $this->getJson("/api/v1/loans/{$loan->id}/repayments", ['Authorization' => "Bearer {$token}"]);
+        $response = $this->getJson("/api/v1/loans/{$loan->id}/repayment-schedules", ['Authorization' => "Bearer {$token}"]);
 
         $response->assertStatus(200);
         $this->assertCount(1, $response->json('data.repayment_schedules'));

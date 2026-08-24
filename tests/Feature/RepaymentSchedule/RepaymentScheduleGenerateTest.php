@@ -1,9 +1,8 @@
 <?php
 
-namespace Tests\Feature\Repayment;
+namespace Tests\Feature\RepaymentSchedule;
 
 use App\Models\Loan;
-use App\Models\Payment;
 use App\Models\Penalty;
 use App\Models\RepaymentFrequency;
 use App\Models\RepaymentSchedule;
@@ -15,7 +14,7 @@ use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
-class RepaymentGenerateTest extends TestCase
+class RepaymentScheduleGenerateTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -64,10 +63,10 @@ class RepaymentGenerateTest extends TestCase
     public function test_authorized_user_can_generate_schedule_for_active_loan(): void
     {
         $loan = $this->activeLoan();
-        $token = $this->actingUserToken(['repayments.create']);
+        $token = $this->actingUserToken(['repayment-schedules.create']);
 
         $response = $this->postJson(
-            "/api/v1/loans/{$loan->id}/repayments/generate",
+            "/api/v1/loans/{$loan->id}/repayment-schedules/generate",
             [],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -81,10 +80,10 @@ class RepaymentGenerateTest extends TestCase
     {
         $loan = $this->activeLoan();
         $otherLoan = $this->activeLoan();
-        $token = $this->actingUserToken(['repayments.create']);
+        $token = $this->actingUserToken(['repayment-schedules.create']);
 
         $this->postJson(
-            "/api/v1/loans/{$loan->id}/repayments/generate",
+            "/api/v1/loans/{$loan->id}/repayment-schedules/generate",
             [],
             ['Authorization' => "Bearer {$token}"],
         )->assertStatus(201);
@@ -97,7 +96,7 @@ class RepaymentGenerateTest extends TestCase
     {
         $loan = $this->activeLoan();
 
-        $response = $this->postJson("/api/v1/loans/{$loan->id}/repayments/generate");
+        $response = $this->postJson("/api/v1/loans/{$loan->id}/repayment-schedules/generate");
 
         $response->assertStatus(401)->assertJson([
             'success' => false,
@@ -111,7 +110,7 @@ class RepaymentGenerateTest extends TestCase
         $token = $this->actingUserToken([]);
 
         $response = $this->postJson(
-            "/api/v1/loans/{$loan->id}/repayments/generate",
+            "/api/v1/loans/{$loan->id}/repayment-schedules/generate",
             [],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -125,10 +124,10 @@ class RepaymentGenerateTest extends TestCase
     public function test_generation_fails_for_pending_loan(): void
     {
         $loan = Loan::factory()->create(['status' => 'pending', 'repayment_frequency' => 'monthly']);
-        $token = $this->actingUserToken(['repayments.create']);
+        $token = $this->actingUserToken(['repayment-schedules.create']);
 
         $response = $this->postJson(
-            "/api/v1/loans/{$loan->id}/repayments/generate",
+            "/api/v1/loans/{$loan->id}/repayment-schedules/generate",
             [],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -142,10 +141,10 @@ class RepaymentGenerateTest extends TestCase
     public function test_generation_fails_for_completed_loan(): void
     {
         $loan = Loan::factory()->completed()->create(['repayment_frequency' => 'monthly']);
-        $token = $this->actingUserToken(['repayments.create']);
+        $token = $this->actingUserToken(['repayment-schedules.create']);
 
         $response = $this->postJson(
-            "/api/v1/loans/{$loan->id}/repayments/generate",
+            "/api/v1/loans/{$loan->id}/repayment-schedules/generate",
             [],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -156,10 +155,10 @@ class RepaymentGenerateTest extends TestCase
     public function test_generation_fails_for_cancelled_loan(): void
     {
         $loan = Loan::factory()->cancelled()->create(['repayment_frequency' => 'monthly']);
-        $token = $this->actingUserToken(['repayments.create']);
+        $token = $this->actingUserToken(['repayment-schedules.create']);
 
         $response = $this->postJson(
-            "/api/v1/loans/{$loan->id}/repayments/generate",
+            "/api/v1/loans/{$loan->id}/repayment-schedules/generate",
             [],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -170,16 +169,16 @@ class RepaymentGenerateTest extends TestCase
     public function test_generation_fails_when_schedule_already_exists(): void
     {
         $loan = $this->activeLoan();
-        $token = $this->actingUserToken(['repayments.create']);
+        $token = $this->actingUserToken(['repayment-schedules.create']);
 
         $this->postJson(
-            "/api/v1/loans/{$loan->id}/repayments/generate",
+            "/api/v1/loans/{$loan->id}/repayment-schedules/generate",
             [],
             ['Authorization' => "Bearer {$token}"],
         )->assertStatus(201);
 
         $response = $this->postJson(
-            "/api/v1/loans/{$loan->id}/repayments/generate",
+            "/api/v1/loans/{$loan->id}/repayment-schedules/generate",
             [],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -193,10 +192,10 @@ class RepaymentGenerateTest extends TestCase
 
     public function test_generation_returns_404_for_nonexistent_loan(): void
     {
-        $token = $this->actingUserToken(['repayments.create']);
+        $token = $this->actingUserToken(['repayment-schedules.create']);
 
         $response = $this->postJson(
-            '/api/v1/loans/999999/repayments/generate',
+            '/api/v1/loans/999999/repayment-schedules/generate',
             [],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -207,15 +206,15 @@ class RepaymentGenerateTest extends TestCase
     public function test_no_payment_or_penalty_records_are_created_by_generation(): void
     {
         $loan = $this->activeLoan();
-        $token = $this->actingUserToken(['repayments.create']);
+        $token = $this->actingUserToken(['repayment-schedules.create']);
 
         $this->postJson(
-            "/api/v1/loans/{$loan->id}/repayments/generate",
+            "/api/v1/loans/{$loan->id}/repayment-schedules/generate",
             [],
             ['Authorization' => "Bearer {$token}"],
         )->assertStatus(201);
 
-        $this->assertFalse(class_exists(Payment::class));
+        $this->assertDatabaseCount('payments', 0);
         $this->assertFalse(class_exists(Penalty::class));
     }
 }

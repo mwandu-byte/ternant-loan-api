@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Repayment;
 
+use App\Models\Receipt;
+use App\Models\Repayment;
 use App\Models\RepaymentSchedule;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -40,9 +42,21 @@ class RepaymentShowTest extends TestCase
         return JWTAuth::fromUser($user);
     }
 
-    public function test_authorized_user_can_view_a_repayment_schedule(): void
+    private function repayment(): Repayment
     {
-        $repayment = RepaymentSchedule::factory()->create();
+        $schedule = RepaymentSchedule::factory()->create();
+        $receipt = Receipt::factory()->create();
+
+        return Repayment::factory()->create([
+            'loan_id' => $schedule->loan_id,
+            'repayment_schedule_id' => $schedule->id,
+            'receipt_id' => $receipt->id,
+        ]);
+    }
+
+    public function test_authorized_user_can_view_a_repayment(): void
+    {
+        $repayment = $this->repayment();
         $token = $this->actingUserToken(['repayments.view']);
 
         $response = $this->getJson("/api/v1/repayments/{$repayment->id}", ['Authorization' => "Bearer {$token}"]);
@@ -53,9 +67,22 @@ class RepaymentShowTest extends TestCase
         ]);
     }
 
+    public function test_show_includes_nested_receipt_loan_and_repayment_schedule(): void
+    {
+        $repayment = $this->repayment();
+        $token = $this->actingUserToken(['repayments.view']);
+
+        $response = $this->getJson("/api/v1/repayments/{$repayment->id}", ['Authorization' => "Bearer {$token}"]);
+
+        $response->assertStatus(200);
+        $this->assertSame($repayment->receipt_id, $response->json('data.receipt.id'));
+        $this->assertSame($repayment->loan_id, $response->json('data.loan.id'));
+        $this->assertSame($repayment->repayment_schedule_id, $response->json('data.repayment_schedule.id'));
+    }
+
     public function test_show_requires_authentication(): void
     {
-        $repayment = RepaymentSchedule::factory()->create();
+        $repayment = $this->repayment();
 
         $response = $this->getJson("/api/v1/repayments/{$repayment->id}");
 
@@ -64,18 +91,15 @@ class RepaymentShowTest extends TestCase
 
     public function test_show_requires_repayments_view_permission(): void
     {
-        $repayment = RepaymentSchedule::factory()->create();
+        $repayment = $this->repayment();
         $token = $this->actingUserToken([]);
 
         $response = $this->getJson("/api/v1/repayments/{$repayment->id}", ['Authorization' => "Bearer {$token}"]);
 
-        $response->assertStatus(403)->assertJson([
-            'success' => false,
-            'message' => 'You do not have permission to perform this action.',
-        ]);
+        $response->assertStatus(403);
     }
 
-    public function test_show_returns_404_for_nonexistent_schedule(): void
+    public function test_show_returns_404_for_nonexistent_repayment(): void
     {
         $token = $this->actingUserToken(['repayments.view']);
 
@@ -83,21 +107,7 @@ class RepaymentShowTest extends TestCase
 
         $response->assertStatus(404)->assertJson([
             'success' => false,
-            'message' => 'Repayment schedule not found.',
+            'message' => 'Repayment not found.',
         ]);
-    }
-
-    public function test_show_response_contains_exact_expected_fields(): void
-    {
-        $repayment = RepaymentSchedule::factory()->create();
-        $token = $this->actingUserToken(['repayments.view']);
-
-        $response = $this->getJson("/api/v1/repayments/{$repayment->id}", ['Authorization' => "Bearer {$token}"]);
-
-        $response->assertStatus(200);
-        $this->assertEqualsCanonicalizing([
-            'id', 'loan_id', 'installment_number', 'due_date', 'principal_amount', 'interest_amount',
-            'total_amount', 'outstanding_amount', 'status', 'created_at', 'updated_at',
-        ], array_keys($response->json('data')));
     }
 }

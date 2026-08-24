@@ -52,6 +52,17 @@ use Illuminate\Http\Request;
  * Every loan response includes `repayment_schedules` (empty until the
  * loan is active).
  *
+ * The same non-active-to-active transition also disburses the loan
+ * automatically, in the same transaction: a Payment is created for
+ * the full `principal_amount`, using the optional `payment_method`
+ * (defaults to the first configured method) and
+ * `payment_reference_no` supplied in this request — see the Payments
+ * group. This means creating or activating a loan requires no
+ * separate disbursement call under normal flow; `POST
+ * /loans/{loan}/payments` remains available only as a manual recovery
+ * path for a loan that reached `active` before this behavior existed
+ * (it correctly rejects a loan that already has a disbursement).
+ *
  * All endpoints return the application's standard envelope:
  * `{"success": bool, "message": string, "data"?: object|null, "errors"?: object}`.
  * All endpoints require `Authorization: Bearer {access_token}` plus the

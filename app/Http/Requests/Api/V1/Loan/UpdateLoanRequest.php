@@ -27,6 +27,8 @@ class UpdateLoanRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:2000'],
             'collateral_ids' => ['sometimes', 'array'],
             'collateral_ids.*' => ['integer', 'exists:collaterals,id'],
+            'payment_method' => ['nullable', 'string', Rule::in(config('payment.methods'))],
+            'payment_reference_no' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

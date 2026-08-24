@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature\Repayment;
+namespace Tests\Feature\RepaymentSchedule;
 
 use App\Models\RepaymentSchedule;
 use App\Models\User;
@@ -12,7 +12,7 @@ use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
-class RepaymentComputedStatusTest extends TestCase
+class RepaymentScheduleComputedStatusTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -43,10 +43,10 @@ class RepaymentComputedStatusTest extends TestCase
 
     private function statusFor(RepaymentSchedule $repayment): string
     {
-        $token = $this->actingUserToken(['repayments.view']);
+        $token = $this->actingUserToken(['repayment-schedules.view']);
 
         return $this->getJson(
-            "/api/v1/repayments/{$repayment->id}",
+            "/api/v1/repayment-schedules/{$repayment->id}",
             ['Authorization' => "Bearer {$token}"],
         )->assertStatus(200)->json('data.status');
     }

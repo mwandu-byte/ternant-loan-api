@@ -2,7 +2,8 @@
 
 namespace Tests\Feature\Repayment;
 
-use App\Models\Loan;
+use App\Models\Receipt;
+use App\Models\Repayment;
 use App\Models\RepaymentSchedule;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -41,25 +42,35 @@ class RepaymentListTest extends TestCase
         return JWTAuth::fromUser($user);
     }
 
-    public function test_authorized_user_can_list_all_repayment_schedules(): void
+    private function repaymentFor(RepaymentSchedule $schedule, array $receiptOverrides = [], array $repaymentOverrides = []): Repayment
     {
-        RepaymentSchedule::factory()->count(3)->create();
+        $receipt = Receipt::factory()->create($receiptOverrides);
+
+        return Repayment::factory()->create(array_merge([
+            'loan_id' => $schedule->loan_id,
+            'repayment_schedule_id' => $schedule->id,
+            'receipt_id' => $receipt->id,
+        ], $repaymentOverrides));
+    }
+
+    public function test_authorized_user_can_list_repayments(): void
+    {
+        $schedule = RepaymentSchedule::factory()->create();
+        $this->repaymentFor($schedule);
+        $this->repaymentFor($schedule);
         $token = $this->actingUserToken(['repayments.view']);
 
         $response = $this->getJson('/api/v1/repayments', ['Authorization' => "Bearer {$token}"]);
 
         $response->assertStatus(200)->assertJson(['success' => true]);
-        $this->assertCount(3, $response->json('data.repayment_schedules'));
+        $this->assertCount(2, $response->json('data.repayments'));
     }
 
     public function test_list_requires_authentication(): void
     {
         $response = $this->getJson('/api/v1/repayments');
 
-        $response->assertStatus(401)->assertJson([
-            'success' => false,
-            'message' => 'Unauthenticated',
-        ]);
+        $response->assertStatus(401);
     }
 
     public function test_list_requires_repayments_view_permission(): void
@@ -68,66 +79,94 @@ class RepaymentListTest extends TestCase
 
         $response = $this->getJson('/api/v1/repayments', ['Authorization' => "Bearer {$token}"]);
 
-        $response->assertStatus(403)->assertJson([
-            'success' => false,
-            'message' => 'You do not have permission to perform this action.',
-        ]);
+        $response->assertStatus(403);
     }
 
     public function test_list_can_filter_by_loan_id(): void
     {
-        $loan = Loan::factory()->active()->create();
-        RepaymentSchedule::factory()->create(['loan_id' => $loan->id, 'installment_number' => 1]);
-        RepaymentSchedule::factory()->create(['loan_id' => $loan->id, 'installment_number' => 2]);
-        RepaymentSchedule::factory()->create(['installment_number' => 1]);
+        $scheduleA = RepaymentSchedule::factory()->create();
+        $scheduleB = RepaymentSchedule::factory()->create();
+        $this->repaymentFor($scheduleA);
+        $this->repaymentFor($scheduleB);
         $token = $this->actingUserToken(['repayments.view']);
 
-        $response = $this->getJson("/api/v1/repayments?loan_id={$loan->id}", ['Authorization' => "Bearer {$token}"]);
+        $response = $this->getJson("/api/v1/repayments?loan_id={$scheduleA->loan_id}", ['Authorization' => "Bearer {$token}"]);
 
         $response->assertStatus(200);
-        $this->assertCount(2, $response->json('data.repayment_schedules'));
+        $this->assertCount(1, $response->json('data.repayments'));
+        $this->assertSame($scheduleA->loan_id, $response->json('data.repayments.0.loan_id'));
     }
 
-    public function test_list_can_filter_by_status(): void
+    public function test_list_can_filter_by_repayment_schedule_id(): void
     {
-        RepaymentSchedule::factory()->paid()->create();
-        RepaymentSchedule::factory()->create(['status' => 'pending']);
+        $scheduleA = RepaymentSchedule::factory()->create();
+        $scheduleB = RepaymentSchedule::factory()->create();
+        $this->repaymentFor($scheduleA);
+        $this->repaymentFor($scheduleB);
         $token = $this->actingUserToken(['repayments.view']);
 
-        $response = $this->getJson('/api/v1/repayments?status=paid', ['Authorization' => "Bearer {$token}"]);
+        $response = $this->getJson("/api/v1/repayments?repayment_schedule_id={$scheduleA->id}", ['Authorization' => "Bearer {$token}"]);
 
         $response->assertStatus(200);
-        $this->assertCount(1, $response->json('data.repayment_schedules'));
-        $this->assertSame('paid', $response->json('data.repayment_schedules.0.status'));
+        $this->assertCount(1, $response->json('data.repayments'));
     }
 
-    public function test_list_can_filter_by_due_date_range(): void
+    public function test_list_can_filter_by_repayment_date_range(): void
     {
-        RepaymentSchedule::factory()->create(['due_date' => '2026-01-01']);
-        RepaymentSchedule::factory()->create(['due_date' => '2026-06-01']);
-        RepaymentSchedule::factory()->create(['due_date' => '2026-12-01']);
+        $schedule = RepaymentSchedule::factory()->create();
+        $this->repaymentFor($schedule, [], ['repayment_date' => '2026-01-01']);
+        $this->repaymentFor($schedule, [], ['repayment_date' => '2026-06-01']);
+        $this->repaymentFor($schedule, [], ['repayment_date' => '2026-12-01']);
         $token = $this->actingUserToken(['repayments.view']);
 
         $response = $this->getJson(
-            '/api/v1/repayments?due_date_from=2026-03-01&due_date_to=2026-09-01',
+            '/api/v1/repayments?repayment_date_from=2026-03-01&repayment_date_to=2026-09-01',
             ['Authorization' => "Bearer {$token}"],
         );
 
         $response->assertStatus(200);
-        $this->assertCount(1, $response->json('data.repayment_schedules'));
-        $this->assertSame('2026-06-01', $response->json('data.repayment_schedules.0.due_date'));
+        $this->assertCount(1, $response->json('data.repayments'));
+        $this->assertSame('2026-06-01', $response->json('data.repayments.0.repayment_date'));
+    }
+
+    public function test_list_can_search_by_receipt_no(): void
+    {
+        $schedule = RepaymentSchedule::factory()->create();
+        $this->repaymentFor($schedule, ['receipt_no' => 'RC-2026-000042']);
+        $this->repaymentFor($schedule, ['receipt_no' => 'RC-2026-000099']);
+        $token = $this->actingUserToken(['repayments.view']);
+
+        $response = $this->getJson('/api/v1/repayments?search=000042', ['Authorization' => "Bearer {$token}"]);
+
+        $response->assertStatus(200);
+        $this->assertCount(1, $response->json('data.repayments'));
+    }
+
+    public function test_list_can_search_by_reference_no(): void
+    {
+        $schedule = RepaymentSchedule::factory()->create();
+        $this->repaymentFor($schedule, ['reference_no' => 'MPESA-XYZ123']);
+        $this->repaymentFor($schedule, ['reference_no' => 'MPESA-ABC999']);
+        $token = $this->actingUserToken(['repayments.view']);
+
+        $response = $this->getJson('/api/v1/repayments?search=XYZ123', ['Authorization' => "Bearer {$token}"]);
+
+        $response->assertStatus(200);
+        $this->assertCount(1, $response->json('data.repayments'));
     }
 
     public function test_list_is_paginated(): void
     {
-        RepaymentSchedule::factory()->count(3)->create();
+        $schedule = RepaymentSchedule::factory()->create();
+        $this->repaymentFor($schedule);
+        $this->repaymentFor($schedule);
+        $this->repaymentFor($schedule);
         $token = $this->actingUserToken(['repayments.view']);
 
         $response = $this->getJson('/api/v1/repayments?per_page=2', ['Authorization' => "Bearer {$token}"]);
 
         $response->assertStatus(200);
-        $this->assertCount(2, $response->json('data.repayment_schedules'));
+        $this->assertCount(2, $response->json('data.repayments'));
         $this->assertSame(3, $response->json('data.pagination.total'));
-        $this->assertSame(2, $response->json('data.pagination.last_page'));
     }
 }

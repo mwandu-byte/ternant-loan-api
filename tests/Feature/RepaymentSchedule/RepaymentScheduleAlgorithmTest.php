@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature\Repayment;
+namespace Tests\Feature\RepaymentSchedule;
 
 use App\Models\InterestRule;
 use App\Models\Loan;
@@ -48,10 +48,10 @@ class RepaymentScheduleAlgorithmTest extends TestCase
 
     private function generate(Loan $loan): array
     {
-        $token = $this->actingUserToken(['repayments.create']);
+        $token = $this->actingUserToken(['repayment-schedules.create']);
 
         return $this->postJson(
-            "/api/v1/loans/{$loan->id}/repayments/generate",
+            "/api/v1/loans/{$loan->id}/repayment-schedules/generate",
             [],
             ['Authorization' => "Bearer {$token}"],
         )->assertStatus(201)->json('data');

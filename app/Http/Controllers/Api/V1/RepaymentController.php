@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Resources\Api\V1\RepaymentScheduleResource;
+use App\Http\Requests\Api\V1\Repayment\StoreRepaymentRequest;
+use App\Http\Resources\Api\V1\RepaymentResource;
 use App\Http\Responses\ApiResponse;
-use App\Services\Loan\LoanService;
-use App\Services\Repayment\RepaymentScheduleService;
+use App\Services\Repayment\RepaymentService;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\QueryParameter;
 use Dedoc\Scramble\Attributes\Response;
@@ -13,33 +13,29 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * View and generate loan repayment schedules.
+ * Record and view actual customer repayments.
  *
- * A repayment schedule is a plan of what a customer is expected to pay
- * over the life of a loan — it is not a record of what has actually
- * been paid. Each installment is generated from the loan's own frozen,
- * already-applied financial terms (`principal_amount`, `interest_amount`,
- * `total_amount`, `repayment_frequency`, `repayment_term`, `start_date`)
- * and never re-reads the current lending configuration, so a loan's
- * schedule stays consistent even if interest rules or repayment
- * frequencies are changed later.
+ * A repayment is money the business has actually received from a
+ * customer and applied against one installment of a loan's repayment
+ * schedule — it is a real financial transaction, not the expected
+ * repayment plan itself (see the Repayment Schedules group for that).
  *
- * A loan's schedule is generated automatically by the Loan module
- * itself — whenever a loan is created as `active`, or whenever an
- * update transitions its status from a non-active value to `active` —
- * so normal application flow never calls the `generate` endpoint
- * below directly; see the Loans group. `generate` exists only as a
- * manual recovery mechanism (e.g. a loan that reached `active` before
- * this automatic behavior existed) and still enforces the same rules:
- * the loan must be `active`, and a schedule may only be generated
- * once per loan. `outstanding_amount` is set equal to `total_amount`
- * on generation and is not maintained by this module — recording
- * actual payments and updating `outstanding_amount` belongs to the
- * separate Payment Management module, not implemented here. The
- * `status` returned for each installment (`pending`, `due`,
- * `overdue`) is derived from `due_date` relative to today; a `paid`
- * or `partially_paid` status, once set by Payment Management, is
- * returned unchanged.
+ * Creating a repayment always creates two records atomically, in a
+ * single database transaction: a Receipt (the money actually
+ * received — receipt number, amount, payment method, date) and a
+ * Repayment (the record of how much of that receipt was applied to
+ * `repayment_schedule_id`). If either fails, both are rolled back —
+ * there is never a receipt without its repayment, or vice versa. The
+ * targeted installment's `outstanding_amount`/`status` are
+ * recalculated from the sum of all repayments against it in the same
+ * transaction.
+ *
+ * This implementation does not support overpayment: a repayment
+ * amount greater than the installment's current outstanding balance
+ * is rejected outright — it is never partially applied, never
+ * auto-rolled into another installment, and never silently reduced.
+ * Repayments are immutable once created — there are no update or
+ * delete endpoints for them.
  *
  * All endpoints return the application's standard envelope:
  * `{"success": bool, "message": string, "data"?: object|null, "errors"?: object}`.
@@ -49,7 +45,9 @@ use Illuminate\Http\Request;
 #[Group('Repayments')]
 class RepaymentController extends Controller
 {
-    private const REPAYMENT_SCHEMA = 'array{id: int, loan_id: int, installment_number: int, due_date: string, principal_amount: string, interest_amount: string, total_amount: string, outstanding_amount: string, status: string, created_at: string, updated_at: string}';
+    private const RECEIPT_SCHEMA = 'array{id: int, receipt_no: string, amount: string, receipt_date: string, payment_method: string, reference_no: string|null, received_by: int, notes: string|null, created_at: string}';
+
+    private const REPAYMENT_SCHEMA = 'array{id: int, loan_id: int, repayment_schedule_id: int, receipt_id: int, receipt: '.self::RECEIPT_SCHEMA.', amount: string, repayment_date: string, notes: string|null, received_by: int, created_at: string}';
 
     private const UNAUTHENTICATED_SCHEMA = 'array{success: false, message: string}';
 
@@ -60,29 +58,25 @@ class RepaymentController extends Controller
     private const VALIDATION_ERROR_SCHEMA = 'array{success: false, message: string, errors: array<string, string[]>}';
 
     public function __construct(
-        private readonly RepaymentScheduleService $repaymentScheduleService,
-        private readonly LoanService $loanService,
+        private readonly RepaymentService $repaymentService,
     ) {
         //
     }
 
     /**
-     * List repayment schedules
+     * List repayments
      *
-     * Returns a paginated, filterable list of repayment schedule
-     * installments across all loans. The `status` filter matches the
-     * stored status only (`pending`, or `paid`/`partially_paid` once
-     * set by Payment Management) — `due` and `overdue` are computed
-     * display values derived from `due_date` and cannot be filtered on
-     * directly.
+     * Returns a paginated, filterable list of actual customer
+     * repayments across all loans.
      */
     #[QueryParameter('page', description: 'Page number.', type: 'integer', default: 1)]
     #[QueryParameter('per_page', description: 'Results per page (max 100).', type: 'integer', default: 15)]
     #[QueryParameter('loan_id', description: 'Filter by loan.', type: 'integer', example: 15)]
-    #[QueryParameter('status', description: 'Filter by the stored status.', type: 'string', example: 'pending')]
-    #[QueryParameter('due_date_from', description: 'Only installments due on or after this date.', type: 'string', example: '2026-09-01')]
-    #[QueryParameter('due_date_to', description: 'Only installments due on or before this date.', type: 'string', example: '2026-12-31')]
-    #[Response(200, description: 'Repayment schedules retrieved.', type: 'array{success: true, message: string, data: array{repayment_schedules: '.self::REPAYMENT_SCHEMA.'[], pagination: array{current_page: int, per_page: int, total: int, last_page: int}}}')]
+    #[QueryParameter('repayment_schedule_id', description: 'Filter by repayment schedule installment.', type: 'integer', example: 4)]
+    #[QueryParameter('repayment_date_from', description: 'Only repayments made on or after this date.', type: 'string', example: '2026-09-01')]
+    #[QueryParameter('repayment_date_to', description: 'Only repayments made on or before this date.', type: 'string', example: '2026-12-31')]
+    #[QueryParameter('search', description: 'Matches against the linked receipt\'s receipt_no or reference_no.', type: 'string')]
+    #[Response(200, description: 'Repayments retrieved.', type: 'array{success: true, message: string, data: array{repayments: '.self::REPAYMENT_SCHEMA.'[], pagination: array{current_page: int, per_page: int, total: int, last_page: int}}}')]
     #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[
         'success' => false,
         'message' => 'Unauthenticated',
@@ -90,118 +84,45 @@ class RepaymentController extends Controller
     #[Response(403, description: 'Missing the repayments.view permission.', type: self::FORBIDDEN_SCHEMA, examples: [[
         'success' => false,
         'message' => 'You do not have permission to perform this action.',
-    ]])]
-    #[Response(422, description: 'The loan_id filter does not reference an existing loan.', type: self::VALIDATION_ERROR_SCHEMA, examples: [[
-        'success' => false,
-        'message' => 'The given data was invalid.',
-        'errors' => ['loan_id' => ['The selected loan id is invalid.']],
     ]])]
     public function index(Request $request): JsonResponse
     {
         $request->validate([
             'loan_id' => ['nullable', 'integer', 'exists:loans,id'],
-            'status' => ['nullable', 'string'],
-            'due_date_from' => ['nullable', 'date'],
-            'due_date_to' => ['nullable', 'date'],
+            'repayment_schedule_id' => ['nullable', 'integer', 'exists:repayment_schedules,id'],
+            'repayment_date_from' => ['nullable', 'date'],
+            'repayment_date_to' => ['nullable', 'date'],
+            'search' => ['nullable', 'string'],
         ]);
 
-        $paginator = $this->repaymentScheduleService->list($request->only([
-            'loan_id', 'status', 'due_date_from', 'due_date_to', 'per_page', 'page',
+        $paginator = $this->repaymentService->list($request->only([
+            'loan_id', 'repayment_schedule_id', 'repayment_date_from', 'repayment_date_to', 'search', 'per_page', 'page',
         ]));
 
         return ApiResponse::success([
-            'repayment_schedules' => RepaymentScheduleResource::collection($paginator)->resolve(),
+            'repayments' => RepaymentResource::collection($paginator)->resolve(),
             'pagination' => [
                 'current_page' => $paginator->currentPage(),
                 'per_page' => $paginator->perPage(),
                 'total' => $paginator->total(),
                 'last_page' => $paginator->lastPage(),
             ],
-        ], 'Repayment schedules retrieved successfully');
+        ], 'Repayments retrieved successfully');
     }
 
     /**
-     * Show a repayment schedule installment
+     * Record a repayment
      *
-     * Returns a single repayment schedule installment.
+     * Records that a customer has actually paid `amount` against the
+     * installment identified by `repayment_schedule_id`. Creates a
+     * Receipt and a Repayment atomically, in one database transaction,
+     * and recalculates the targeted installment's outstanding balance
+     * and status. `repayment_schedule_id` must belong to `loan_id` —
+     * this is verified explicitly, never assumed. The amount must not
+     * exceed the installment's current outstanding balance;
+     * overpayment is rejected, not partially applied.
      */
-    #[Response(200, description: 'Repayment schedule installment retrieved.', type: 'array{success: true, message: string, data: '.self::REPAYMENT_SCHEMA.'}')]
-    #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[
-        'success' => false,
-        'message' => 'Unauthenticated',
-    ]])]
-    #[Response(403, description: 'Missing the repayments.view permission.', type: self::FORBIDDEN_SCHEMA, examples: [[
-        'success' => false,
-        'message' => 'You do not have permission to perform this action.',
-    ]])]
-    #[Response(404, description: 'Repayment schedule installment does not exist.', type: self::NOT_FOUND_SCHEMA, examples: [[
-        'success' => false,
-        'message' => 'Repayment schedule not found.',
-    ]])]
-    public function show(int $repayment): JsonResponse
-    {
-        $model = $this->repaymentScheduleService->find($repayment);
-
-        return ApiResponse::success(new RepaymentScheduleResource($model), 'Repayment schedule retrieved successfully');
-    }
-
-    /**
-     * List a loan's repayment schedule
-     *
-     * Returns the full repayment schedule belonging to the given loan.
-     */
-    #[QueryParameter('page', description: 'Page number.', type: 'integer', default: 1)]
-    #[QueryParameter('per_page', description: 'Results per page (max 100).', type: 'integer', default: 15)]
-    #[QueryParameter('status', description: 'Filter by the stored status.', type: 'string', example: 'pending')]
-    #[QueryParameter('due_date_from', description: 'Only installments due on or after this date.', type: 'string', example: '2026-09-01')]
-    #[QueryParameter('due_date_to', description: 'Only installments due on or before this date.', type: 'string', example: '2026-12-31')]
-    #[Response(200, description: 'Repayment schedule retrieved.', type: 'array{success: true, message: string, data: array{repayment_schedules: '.self::REPAYMENT_SCHEMA.'[], pagination: array{current_page: int, per_page: int, total: int, last_page: int}}}')]
-    #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[
-        'success' => false,
-        'message' => 'Unauthenticated',
-    ]])]
-    #[Response(403, description: 'Missing the repayments.view permission.', type: self::FORBIDDEN_SCHEMA, examples: [[
-        'success' => false,
-        'message' => 'You do not have permission to perform this action.',
-    ]])]
-    #[Response(404, description: 'Loan does not exist.', type: self::NOT_FOUND_SCHEMA, examples: [[
-        'success' => false,
-        'message' => 'Loan not found.',
-    ]])]
-    public function indexForLoan(int $loan, Request $request): JsonResponse
-    {
-        $loanModel = $this->loanService->find($loan);
-
-        $paginator = $this->repaymentScheduleService->listForLoan($loanModel, $request->only([
-            'status', 'due_date_from', 'due_date_to', 'per_page', 'page',
-        ]));
-
-        return ApiResponse::success([
-            'repayment_schedules' => RepaymentScheduleResource::collection($paginator)->resolve(),
-            'pagination' => [
-                'current_page' => $paginator->currentPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-                'last_page' => $paginator->lastPage(),
-            ],
-        ], 'Repayment schedule retrieved successfully');
-    }
-
-    /**
-     * Generate a loan's repayment schedule (manual recovery)
-     *
-     * Normal application flow never needs this endpoint: the Loans API
-     * already generates a schedule automatically the moment a loan
-     * becomes `active`. This endpoint exists only to recover a loan
-     * that reached `active` without one. Generates the schedule for
-     * the given loan from its own frozen financial terms and
-     * configured repayment frequency/term. Only allowed once, and
-     * only while the loan is `active`. The generated installments'
-     * principal, interest, and total amounts always sum exactly to
-     * the loan's `principal_amount`, `interest_amount`, and
-     * `total_amount` respectively.
-     */
-    #[Response(201, description: 'Repayment schedule generated.', type: 'array{success: true, message: string, data: '.self::REPAYMENT_SCHEMA.'[]}')]
+    #[Response(201, description: 'Repayment recorded.', type: 'array{success: true, message: string, data: '.self::REPAYMENT_SCHEMA.'}')]
     #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[
         'success' => false,
         'message' => 'Unauthenticated',
@@ -210,27 +131,53 @@ class RepaymentController extends Controller
         'success' => false,
         'message' => 'You do not have permission to perform this action.',
     ]])]
-    #[Response(404, description: 'Loan does not exist.', type: self::NOT_FOUND_SCHEMA, examples: [[
+    #[Response(404, description: 'Loan or repayment schedule does not exist.', type: self::NOT_FOUND_SCHEMA, examples: [[
         'success' => false,
-        'message' => 'Loan not found.',
+        'message' => 'Repayment schedule not found.',
     ]])]
-    #[Response(409, description: 'A repayment schedule has already been generated for this loan.', type: 'array{success: false, message: string}', examples: [[
+    #[Response(409, description: 'A receipt already exists with the supplied reference_no.', type: 'array{success: false, message: string}', examples: [[
         'success' => false,
-        'message' => 'A repayment schedule has already been generated for this loan.',
+        'message' => 'A receipt already exists with this reference number.',
     ]])]
-    #[Response(422, description: 'The loan is not active and is not eligible for repayment schedule generation.', type: 'array{success: false, message: string}', examples: [[
+    #[Response(422, description: 'Validation failed, the repayment schedule does not belong to the supplied loan, or the amount exceeds the outstanding balance.', type: self::VALIDATION_ERROR_SCHEMA, examples: [[
         'success' => false,
-        'message' => 'Only active loans are eligible for repayment schedule generation.',
+        'message' => 'The given data was invalid.',
+        'errors' => ['amount' => ['The amount field must be greater than 0.']],
     ]])]
-    public function generate(int $loan): JsonResponse
+    public function store(StoreRepaymentRequest $request): JsonResponse
     {
-        $loanModel = $this->loanService->find($loan);
-        $schedule = $this->repaymentScheduleService->generateForLoan($loanModel);
+        $repayment = $this->repaymentService->create($request->validated());
 
         return ApiResponse::success(
-            RepaymentScheduleResource::collection($schedule)->resolve(),
-            'Repayment schedule generated successfully',
+            new RepaymentResource($repayment),
+            'Repayment recorded successfully',
             201,
         );
+    }
+
+    /**
+     * Show a repayment
+     *
+     * Returns a single repayment, including its linked receipt, loan,
+     * and repayment schedule installment.
+     */
+    #[Response(200, description: 'Repayment retrieved.', type: 'array{success: true, message: string, data: '.self::REPAYMENT_SCHEMA.'}')]
+    #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[
+        'success' => false,
+        'message' => 'Unauthenticated',
+    ]])]
+    #[Response(403, description: 'Missing the repayments.view permission.', type: self::FORBIDDEN_SCHEMA, examples: [[
+        'success' => false,
+        'message' => 'You do not have permission to perform this action.',
+    ]])]
+    #[Response(404, description: 'Repayment does not exist.', type: self::NOT_FOUND_SCHEMA, examples: [[
+        'success' => false,
+        'message' => 'Repayment not found.',
+    ]])]
+    public function show(int $repayment): JsonResponse
+    {
+        $model = $this->repaymentService->find($repayment);
+
+        return ApiResponse::success(new RepaymentResource($model), 'Repayment retrieved successfully');
     }
 }

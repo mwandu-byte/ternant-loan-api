@@ -7,9 +7,11 @@ use App\Http\Controllers\Api\V1\GracePeriodController;
 use App\Http\Controllers\Api\V1\InterestRuleController;
 use App\Http\Controllers\Api\V1\LoanAmountConfigurationController;
 use App\Http\Controllers\Api\V1\LoanController;
+use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PenaltyRuleController;
 use App\Http\Controllers\Api\V1\RepaymentController;
 use App\Http\Controllers\Api\V1\RepaymentFrequencyController;
+use App\Http\Controllers\Api\V1\RepaymentScheduleController;
 use App\Http\Controllers\Api\V1\RepaymentTermController;
 use Illuminate\Support\Facades\Route;
 
@@ -50,15 +52,30 @@ Route::middleware('auth:api')->group(function () {
         Route::put('{loan}', [LoanController::class, 'update'])->middleware('permission:loans.update');
         Route::delete('{loan}', [LoanController::class, 'destroy'])->middleware('permission:loans.delete');
 
-        Route::prefix('{loan}/repayments')->group(function () {
-            Route::get('/', [RepaymentController::class, 'indexForLoan'])->middleware('permission:repayments.view');
-            Route::post('generate', [RepaymentController::class, 'generate'])->middleware('permission:repayments.create');
+        Route::prefix('{loan}/repayment-schedules')->group(function () {
+            Route::get('/', [RepaymentScheduleController::class, 'indexForLoan'])->middleware('permission:repayment-schedules.view');
+            Route::post('generate', [RepaymentScheduleController::class, 'generate'])->middleware('permission:repayment-schedules.create');
         });
+
+        Route::prefix('{loan}/payments')->group(function () {
+            Route::post('/', [PaymentController::class, 'store'])->middleware('permission:payments.create');
+        });
+    });
+
+    Route::prefix('repayment-schedules')->group(function () {
+        Route::get('/', [RepaymentScheduleController::class, 'index'])->middleware('permission:repayment-schedules.view');
+        Route::get('{repayment}', [RepaymentScheduleController::class, 'show'])->middleware('permission:repayment-schedules.view');
     });
 
     Route::prefix('repayments')->group(function () {
         Route::get('/', [RepaymentController::class, 'index'])->middleware('permission:repayments.view');
+        Route::post('/', [RepaymentController::class, 'store'])->middleware('permission:repayments.create');
         Route::get('{repayment}', [RepaymentController::class, 'show'])->middleware('permission:repayments.view');
+    });
+
+    Route::prefix('payments')->group(function () {
+        Route::get('/', [PaymentController::class, 'index'])->middleware('permission:payments.view');
+        Route::get('{payment}', [PaymentController::class, 'show'])->middleware('permission:payments.view');
     });
 
     Route::prefix('loan-configurations')->group(function () {
@@ -112,7 +129,6 @@ Route::middleware('auth:api')->group(function () {
     // a controller class that doesn't exist yet would fatal-error route
     // registration/caching.
     // -----------------------------------------------------------------------
-    // Route::middleware('permission:payments.view')->prefix('payments')->group(...);
     // Route::middleware('permission:penalties.view')->prefix('penalties')->group(...);
     // Route::middleware('permission:reports.view')->prefix('reports')->group(...);
     // Route::middleware('permission:dashboard.view')->prefix('dashboard')->group(...);

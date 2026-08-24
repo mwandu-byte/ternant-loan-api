@@ -31,6 +31,8 @@ class StoreLoanRequest extends FormRequest
             'discount_rate' => ['nullable', 'numeric', 'min:0', 'required_if:has_discount,true', 'prohibited_unless:has_discount,true'],
             'collateral_ids' => ['nullable', 'array'],
             'collateral_ids.*' => ['integer', 'exists:collaterals,id'],
+            'payment_method' => ['nullable', 'string', Rule::in(config('payment.methods'))],
+            'payment_reference_no' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

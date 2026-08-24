@@ -9,8 +9,16 @@ use App\Exceptions\Customer\CustomerHasRelatedRecordsException;
 use App\Exceptions\Loan\LoanAmountOutOfRangeException;
 use App\Exceptions\Loan\LoanNotEditableException;
 use App\Exceptions\Loan\LoanNotFoundException;
+use App\Exceptions\Payment\InvalidDisbursementAmountException;
+use App\Exceptions\Payment\LoanAlreadyDisbursedException;
+use App\Exceptions\Payment\LoanNotEligibleForDisbursementException;
+use App\Exceptions\Payment\PaymentNotFoundException;
+use App\Exceptions\Receipt\DuplicateReceiptReferenceException;
 use App\Exceptions\Repayment\LoanNotEligibleForRepaymentScheduleException;
+use App\Exceptions\Repayment\RepaymentExceedsOutstandingAmountException;
+use App\Exceptions\Repayment\RepaymentNotFoundException;
 use App\Exceptions\Repayment\RepaymentScheduleAlreadyExistsException;
+use App\Exceptions\Repayment\RepaymentScheduleDoesNotBelongToLoanException;
 use App\Exceptions\Repayment\RepaymentScheduleNotFoundException;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -157,6 +165,54 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (LoanNotEligibleForRepaymentScheduleException $e, Request $request) {
             if ($request->is('api/*')) {
                 return ApiResponse::error($e->getMessage(), 422);
+            }
+        });
+
+        $exceptions->render(function (RepaymentNotFoundException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 404);
+            }
+        });
+
+        $exceptions->render(function (RepaymentScheduleDoesNotBelongToLoanException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 422);
+            }
+        });
+
+        $exceptions->render(function (RepaymentExceedsOutstandingAmountException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 422);
+            }
+        });
+
+        $exceptions->render(function (DuplicateReceiptReferenceException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 409);
+            }
+        });
+
+        $exceptions->render(function (LoanNotEligibleForDisbursementException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 422);
+            }
+        });
+
+        $exceptions->render(function (LoanAlreadyDisbursedException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 409);
+            }
+        });
+
+        $exceptions->render(function (InvalidDisbursementAmountException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 422);
+            }
+        });
+
+        $exceptions->render(function (PaymentNotFoundException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 404);
             }
         });
 

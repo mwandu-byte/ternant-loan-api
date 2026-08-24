@@ -38,6 +38,10 @@ class PermissionSeeder extends Seeder
             'loans.update',
             'loans.delete',
 
+            'repayment-schedules.view',
+            'repayment-schedules.create',
+            'repayment-schedules.update',
+
             'repayments.view',
             'repayments.create',
             'repayments.update',

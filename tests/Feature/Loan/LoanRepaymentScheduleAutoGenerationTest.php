@@ -5,7 +5,6 @@ namespace Tests\Feature\Loan;
 use App\Models\Customer;
 use App\Models\InterestRule;
 use App\Models\Loan;
-use App\Models\Payment;
 use App\Models\Penalty;
 use App\Models\RepaymentFrequency;
 use App\Models\RepaymentTerm;
@@ -149,6 +148,7 @@ class LoanRepaymentScheduleAutoGenerationTest extends TestCase
 
         $this->assertDatabaseCount('loans', 0);
         $this->assertDatabaseCount('repayment_schedules', 0);
+        $this->assertDatabaseCount('payments', 0);
     }
 
     // -----------------------------------------------------------------
@@ -253,6 +253,7 @@ class LoanRepaymentScheduleAutoGenerationTest extends TestCase
 
         $this->assertSame('pending', $loan->fresh()->status);
         $this->assertDatabaseCount('repayment_schedules', 0);
+        $this->assertDatabaseCount('payments', 0);
     }
 
     // -----------------------------------------------------------------
@@ -262,7 +263,7 @@ class LoanRepaymentScheduleAutoGenerationTest extends TestCase
     public function test_manual_generate_endpoint_rejects_a_loan_that_was_auto_generated_on_activation(): void
     {
         $customer = Customer::factory()->create();
-        $token = $this->actingUserToken(['loans.create', 'repayments.create']);
+        $token = $this->actingUserToken(['loans.create', 'repayment-schedules.create']);
 
         $loanId = $this->postJson(
             '/api/v1/loans',
@@ -271,7 +272,7 @@ class LoanRepaymentScheduleAutoGenerationTest extends TestCase
         )->json('data.id');
 
         $response = $this->postJson(
-            "/api/v1/loans/{$loanId}/repayments/generate",
+            "/api/v1/loans/{$loanId}/repayment-schedules/generate",
             [],
             ['Authorization' => "Bearer {$token}"],
         );
@@ -402,7 +403,7 @@ class LoanRepaymentScheduleAutoGenerationTest extends TestCase
         );
     }
 
-    public function test_no_payment_or_penalty_records_are_created_by_automatic_generation(): void
+    public function test_no_penalty_records_are_created_by_automatic_generation(): void
     {
         $customer = Customer::factory()->create();
         $token = $this->actingUserToken(['loans.create']);
@@ -413,7 +414,9 @@ class LoanRepaymentScheduleAutoGenerationTest extends TestCase
             ['Authorization' => "Bearer {$token}"],
         )->assertStatus(201);
 
-        $this->assertFalse(class_exists(Payment::class));
+        // Activating a loan does disburse it automatically (see
+        // LoanAutoDisbursementTest) — Penalty is the only concept that
+        // must stay untouched here, since it is out of scope entirely.
         $this->assertFalse(class_exists(Penalty::class));
     }
 }
