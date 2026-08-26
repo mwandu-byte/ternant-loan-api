@@ -5,7 +5,6 @@ namespace Tests\Feature\Loan;
 use App\Models\Customer;
 use App\Models\InterestRule;
 use App\Models\Loan;
-use App\Models\Penalty;
 use App\Models\RepaymentFrequency;
 use App\Models\RepaymentTerm;
 use App\Models\User;
@@ -415,8 +414,9 @@ class LoanRepaymentScheduleAutoGenerationTest extends TestCase
         )->assertStatus(201);
 
         // Activating a loan does disburse it automatically (see
-        // LoanAutoDisbursementTest) — Penalty is the only concept that
-        // must stay untouched here, since it is out of scope entirely.
-        $this->assertFalse(class_exists(Penalty::class));
+        // LoanAutoDisbursementTest) — penalty accrual is a separate,
+        // grace-period-gated process (see the Penalty test suite) and
+        // must never be triggered merely by creating/activating a loan.
+        $this->assertDatabaseCount('penalties', 0);
     }
 }

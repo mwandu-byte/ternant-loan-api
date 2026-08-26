@@ -48,4 +48,9 @@ class RepaymentSchedule extends Model
     {
         return $this->hasMany(Repayment::class);
     }
+
+    public function penalties(): HasMany
+    {
+        return $this->hasMany(Penalty::class);
+    }
 }

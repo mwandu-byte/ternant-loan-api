@@ -3,11 +3,13 @@
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CollateralController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\GracePeriodController;
 use App\Http\Controllers\Api\V1\InterestRuleController;
 use App\Http\Controllers\Api\V1\LoanAmountConfigurationController;
 use App\Http\Controllers\Api\V1\LoanController;
 use App\Http\Controllers\Api\V1\PaymentController;
+use App\Http\Controllers\Api\V1\PenaltyController;
 use App\Http\Controllers\Api\V1\PenaltyRuleController;
 use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\RepaymentController;
@@ -162,6 +164,15 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('{permission}', [PermissionController::class, 'destroy'])->middleware('permission:permissions.delete');
     });
 
+    Route::prefix('penalties')->group(function () {
+        Route::get('/', [PenaltyController::class, 'index'])->middleware('permission:penalties.view');
+        Route::get('{penalty}', [PenaltyController::class, 'show'])->middleware('permission:penalties.view');
+    });
+
+    Route::prefix('dashboard')->group(function () {
+        Route::get('/', [DashboardController::class, 'index'])->middleware('permission:dashboard.view');
+    });
+
     // -----------------------------------------------------------------------
     // Future modules — not implemented yet. Each will be its own route
     // group, behind the relevant `permission:*` middleware, once its
@@ -169,7 +180,5 @@ Route::middleware('auth:api')->group(function () {
     // a controller class that doesn't exist yet would fatal-error route
     // registration/caching.
     // -----------------------------------------------------------------------
-    // Route::middleware('permission:penalties.view')->prefix('penalties')->group(...);
     // Route::middleware('permission:reports.view')->prefix('reports')->group(...);
-    // Route::middleware('permission:dashboard.view')->prefix('dashboard')->group(...);
 });

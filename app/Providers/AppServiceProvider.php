@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\Repayment\OverdueService;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\SecurityDocumentation\MiddlewareAuthSecurityStrategy;
 use Dedoc\Scramble\Support\Generator\SecurityScheme;
@@ -19,7 +20,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Bound as a singleton (rather than left as the framework's default
+        // per-resolution instance) because RepaymentScheduleResource — a
+        // per-row JsonResource, never constructor-injected — resolves this
+        // via app(OverdueService::class) once per row when rendering a
+        // paginated list. A singleton means the single-row GracePeriod
+        // config is fetched at most once per request instead of once per
+        // row.
+        $this->app->singleton(OverdueService::class);
     }
 
     /**

@@ -37,8 +37,11 @@ class RepaymentScheduleFactory extends Factory
 
     public function overdue(): static
     {
+        // 10 days past due comfortably clears the seeded 7-day default
+        // grace period, so this state remains genuinely 'overdue' (not
+        // merely 'due') under grace-period-aware status derivation.
         return $this->state(fn (array $attributes) => [
-            'due_date' => Carbon::now()->subDays(5)->toDateString(),
+            'due_date' => Carbon::now()->subDays(10)->toDateString(),
             'status' => 'pending',
         ]);
     }

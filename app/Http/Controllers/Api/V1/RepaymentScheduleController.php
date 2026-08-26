@@ -37,9 +37,15 @@ use Illuminate\Http\Request;
  * actual payments and updating `outstanding_amount` belongs to the
  * separate Payment Management module, not implemented here. The
  * `status` returned for each installment (`pending`, `due`,
- * `overdue`) is derived from `due_date` relative to today; a `paid`
- * or `partially_paid` status, once set by Payment Management, is
- * returned unchanged.
+ * `overdue`) is derived from `due_date` relative to today AND the
+ * configured grace period — an installment past its due date but
+ * still within grace shows `due`, not `overdue`; see the Loan
+ * Configuration group's grace period endpoint. A `paid` or
+ * `partially_paid` status, once set by Payment Management, is
+ * returned unchanged. Each installment also reports `is_overdue`,
+ * `days_overdue`, `grace_period_expires_at`, and `penalties_accrued`
+ * (the sum of any penalties charged against it — see the Penalties
+ * group).
  *
  * All endpoints return the application's standard envelope:
  * `{"success": bool, "message": string, "data"?: object|null, "errors"?: object}`.
@@ -49,7 +55,7 @@ use Illuminate\Http\Request;
 #[Group('Repayment Schedules')]
 class RepaymentScheduleController extends Controller
 {
-    private const REPAYMENT_SCHEMA = 'array{id: int, loan_id: int, installment_number: int, due_date: string, principal_amount: string, interest_amount: string, total_amount: string, outstanding_amount: string, status: string, created_at: string, updated_at: string}';
+    private const REPAYMENT_SCHEMA = 'array{id: int, loan_id: int, installment_number: int, due_date: string, principal_amount: string, interest_amount: string, total_amount: string, outstanding_amount: string, status: string, is_overdue: bool, days_overdue: int, grace_period_expires_at: string|null, penalties_accrued: string, created_at: string, updated_at: string}';
 
     private const UNAUTHENTICATED_SCHEMA = 'array{success: false, message: string}';
 

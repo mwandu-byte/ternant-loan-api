@@ -97,7 +97,22 @@ class RepaymentScheduleShowTest extends TestCase
         $response->assertStatus(200);
         $this->assertEqualsCanonicalizing([
             'id', 'loan_id', 'installment_number', 'due_date', 'principal_amount', 'interest_amount',
-            'total_amount', 'outstanding_amount', 'status', 'created_at', 'updated_at',
+            'total_amount', 'outstanding_amount', 'status', 'is_overdue', 'days_overdue',
+            'grace_period_expires_at', 'penalties_accrued', 'created_at', 'updated_at',
         ], array_keys($response->json('data')));
+    }
+
+    public function test_show_response_contains_overdue_and_penalty_fields_for_an_overdue_schedule(): void
+    {
+        $repayment = RepaymentSchedule::factory()->overdue()->create();
+        $token = $this->actingUserToken(['repayment-schedules.view']);
+
+        $response = $this->getJson("/api/v1/repayment-schedules/{$repayment->id}", ['Authorization' => "Bearer {$token}"]);
+
+        $response->assertStatus(200);
+        $this->assertTrue($response->json('data.is_overdue'));
+        $this->assertGreaterThan(0, $response->json('data.days_overdue'));
+        $this->assertNotNull($response->json('data.grace_period_expires_at'));
+        $this->assertSame('0.00', $response->json('data.penalties_accrued'));
     }
 }

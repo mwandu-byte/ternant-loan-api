@@ -34,7 +34,7 @@ class RepaymentScheduleService
 
     public function find(int $id): RepaymentSchedule
     {
-        $repaymentSchedule = RepaymentSchedule::find($id);
+        $repaymentSchedule = RepaymentSchedule::withSum('penalties', 'amount')->find($id);
 
         if ($repaymentSchedule === null) {
             throw new RepaymentScheduleNotFoundException;
@@ -110,6 +110,8 @@ class RepaymentScheduleService
      */
     private function applyFilters($query, array $filters)
     {
+        $query->withSum('penalties', 'amount');
+
         if (! empty($filters['loan_id'])) {
             $query->where('loan_id', $filters['loan_id']);
         }

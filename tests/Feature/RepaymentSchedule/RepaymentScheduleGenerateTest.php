@@ -3,7 +3,6 @@
 namespace Tests\Feature\RepaymentSchedule;
 
 use App\Models\Loan;
-use App\Models\Penalty;
 use App\Models\RepaymentFrequency;
 use App\Models\RepaymentSchedule;
 use App\Models\User;
@@ -215,6 +214,6 @@ class RepaymentScheduleGenerateTest extends TestCase
         )->assertStatus(201);
 
         $this->assertDatabaseCount('payments', 0);
-        $this->assertFalse(class_exists(Penalty::class));
+        $this->assertDatabaseCount('penalties', 0);
     }
 }

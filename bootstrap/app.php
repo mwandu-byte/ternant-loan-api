@@ -14,6 +14,7 @@ use App\Exceptions\Payment\InvalidDisbursementAmountException;
 use App\Exceptions\Payment\LoanAlreadyDisbursedException;
 use App\Exceptions\Payment\LoanNotEligibleForDisbursementException;
 use App\Exceptions\Payment\PaymentNotFoundException;
+use App\Exceptions\Penalty\PenaltyNotFoundException;
 use App\Exceptions\Permission\PermissionInUseException;
 use App\Exceptions\Receipt\DuplicateReceiptReferenceException;
 use App\Exceptions\Repayment\LoanNotEligibleForRepaymentScheduleException;
@@ -29,6 +30,7 @@ use App\Exceptions\User\UserHasRelatedRecordsException;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -60,6 +62,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // This is a JSON-only API — there is no "login" web route to redirect
         // guests to, so unauthenticated requests must never attempt one.
         $middleware->redirectGuestsTo(fn () => null);
+    })
+    ->withSchedule(function (Schedule $schedule): void {
+        $schedule->command('penalties:accrue')->daily()->timezone(config('app.timezone'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
@@ -217,6 +222,12 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (PaymentNotFoundException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 404);
+            }
+        });
+
+        $exceptions->render(function (PenaltyNotFoundException $e, Request $request) {
             if ($request->is('api/*')) {
                 return ApiResponse::error($e->getMessage(), 404);
             }

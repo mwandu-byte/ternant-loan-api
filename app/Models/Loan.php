@@ -75,4 +75,9 @@ class Loan extends Model
     {
         return $this->hasMany(Payment::class);
     }
+
+    public function penalties(): HasMany
+    {
+        return $this->hasMany(Penalty::class);
+    }
 }

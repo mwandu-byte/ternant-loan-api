@@ -54,6 +54,27 @@ class PenaltyRuleService
         $penaltyRule->delete();
     }
 
+    /**
+     * Resolves the active penalty rule covering the loan's ORIGINAL
+     * principal amount — never outstanding balance, remaining
+     * installment amount, or interest — per the approved business rule.
+     * Called only from the penalty accrual path (never from loan
+     * creation, which must remain unaffected by penalty configuration).
+     * Returns null, not an exception, when no active rule matches: an
+     * unmatched principal simply means that schedule's accrual is
+     * skipped for this run, not that the whole batch fails.
+     */
+    public function resolveApplicableRule(float $principal): ?PenaltyRule
+    {
+        return PenaltyRule::query()
+            ->active()
+            ->where('minimum_amount', '<=', $principal)
+            ->where(function ($query) use ($principal) {
+                $query->whereNull('maximum_amount')->orWhere('maximum_amount', '>=', $principal);
+            })
+            ->first();
+    }
+
     private function assertNoActiveOverlap(float $minimumAmount, ?float $maximumAmount, bool $isActive, ?int $ignoreId = null): void
     {
         if ($maximumAmount !== null && $maximumAmount <= $minimumAmount) {
