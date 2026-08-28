@@ -262,8 +262,14 @@ class DashboardSummaryTest extends TestCase
         $queryCount = count(DB::getQueryLog());
         DB::disableQueryLog();
 
+        // Bound raised from 25 to accommodate the loan_performance and
+        // charts sections (period/loan_performance metrics plus
+        // month-bucketed trend aggregates for the default 30-day window)
+        // added on top of the original summary blocks. Still O(chart
+        // metrics x month buckets in the effective range), never O(rows) —
+        // the point of this test (no N+1/per-record looping) is unchanged.
         $this->assertLessThan(
-            25,
+            50,
             $queryCount,
             'Dashboard endpoint should use a small, fixed number of aggregate queries rather than looping per record.',
         );

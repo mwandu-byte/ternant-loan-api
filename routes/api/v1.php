@@ -1,15 +1,23 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\CashFlowReportController;
 use App\Http\Controllers\Api\V1\CollateralController;
+use App\Http\Controllers\Api\V1\CollectionReportController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\CustomerReportController;
 use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\DisbursementReportController;
 use App\Http\Controllers\Api\V1\GracePeriodController;
 use App\Http\Controllers\Api\V1\InterestRuleController;
 use App\Http\Controllers\Api\V1\LoanAmountConfigurationController;
 use App\Http\Controllers\Api\V1\LoanController;
+use App\Http\Controllers\Api\V1\LoanPortfolioReportController;
+use App\Http\Controllers\Api\V1\OutstandingLoansReportController;
+use App\Http\Controllers\Api\V1\OverdueLoansReportController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\PenaltyController;
+use App\Http\Controllers\Api\V1\PenaltyReportController;
 use App\Http\Controllers\Api\V1\PenaltyRuleController;
 use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\RepaymentController;
@@ -173,12 +181,14 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/', [DashboardController::class, 'index'])->middleware('permission:dashboard.view');
     });
 
-    // -----------------------------------------------------------------------
-    // Future modules — not implemented yet. Each will be its own route
-    // group, behind the relevant `permission:*` middleware, once its
-    // controller exists. Left commented rather than wired up: referencing
-    // a controller class that doesn't exist yet would fatal-error route
-    // registration/caching.
-    // -----------------------------------------------------------------------
-    // Route::middleware('permission:reports.view')->prefix('reports')->group(...);
+    Route::prefix('reports')->group(function () {
+        Route::get('loan-portfolio', [LoanPortfolioReportController::class, 'index'])->middleware('permission:reports.view');
+        Route::get('disbursements', [DisbursementReportController::class, 'index'])->middleware('permission:reports.view');
+        Route::get('collections', [CollectionReportController::class, 'index'])->middleware('permission:reports.view');
+        Route::get('outstanding-loans', [OutstandingLoansReportController::class, 'index'])->middleware('permission:reports.view');
+        Route::get('overdue-loans', [OverdueLoansReportController::class, 'index'])->middleware('permission:reports.view');
+        Route::get('penalties', [PenaltyReportController::class, 'index'])->middleware('permission:reports.view');
+        Route::get('customers', [CustomerReportController::class, 'index'])->middleware('permission:reports.view');
+        Route::get('cash-flow', [CashFlowReportController::class, 'index'])->middleware('permission:reports.view');
+    });
 });

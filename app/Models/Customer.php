@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 #[Fillable([
     'full_name',
@@ -32,5 +33,15 @@ class Customer extends Model
     public function loans(): HasMany
     {
         return $this->hasMany(Loan::class);
+    }
+
+    public function repayments(): HasManyThrough
+    {
+        return $this->hasManyThrough(Repayment::class, Loan::class);
+    }
+
+    public function repaymentSchedules(): HasManyThrough
+    {
+        return $this->hasManyThrough(RepaymentSchedule::class, Loan::class);
     }
 }
