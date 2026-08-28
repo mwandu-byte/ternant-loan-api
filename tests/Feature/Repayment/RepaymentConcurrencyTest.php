@@ -78,7 +78,7 @@ class RepaymentConcurrencyTest extends TestCase
         $second = $this->postJson('/api/v1/repayments', $payload, ['Authorization' => "Bearer {$token}"]);
         $second->assertStatus(422)->assertJson([
             'success' => false,
-            'message' => 'Repayment amount exceeds the outstanding balance for this installment.',
+            'message' => 'Repayment amount exceeds the outstanding balance for this installment and any subsequent unpaid installments on this loan.',
         ]);
 
         $this->assertDatabaseCount('repayments', 1);

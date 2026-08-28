@@ -209,9 +209,10 @@ class LoanController extends Controller
      *
      * Updates a loan. Editable fields depend on the loan's current
      * status: pending loans allow full editing of the repayment
-     * schedule and collateral selection; active loans allow only
-     * `notes` and a status transition to `completed` or `cancelled`;
-     * completed/cancelled loans cannot be modified at all. The
+     * schedule and collateral selection, including a transition to
+     * `cancelled`; active loans allow only `notes` and a status
+     * transition to `completed` — an active loan can never be
+     * cancelled; completed/cancelled loans cannot be modified at all. The
      * financial fields calculated at creation (`customer_id`,
      * `reference_no`, `principal_amount`, `interest_rate`,
      * `interest_amount`, `total_amount`, `has_discount`,
@@ -262,13 +263,14 @@ class LoanController extends Controller
     /**
      * Delete a loan
      *
-     * Pending loans are permanently deleted. Active loans are
-     * cancelled instead — the record is kept with status `cancelled`.
-     * Completed or already-cancelled loans cannot be deleted or
-     * cancelled. Does not cascade into repayment, payment, or penalty
-     * records.
+     * Only a pending loan (never disbursed) can be deleted, and
+     * deletion is permanent. There is no way to cancel an active
+     * loan — once active, a loan can only move forward to `completed`
+     * (via `PUT /loans/{id}`). Active, completed, and already-cancelled
+     * loans cannot be deleted. Does not cascade into repayment,
+     * payment, or penalty records.
      */
-    #[Response(200, description: 'Loan deleted or cancelled.', type: 'array{success: true, message: string, data: null}', examples: [[
+    #[Response(200, description: 'Loan deleted.', type: 'array{success: true, message: string, data: null}', examples: [[
         'success' => true,
         'message' => 'Loan deleted successfully',
         'data' => null,
@@ -285,7 +287,7 @@ class LoanController extends Controller
         'success' => false,
         'message' => 'Loan not found.',
     ]])]
-    #[Response(409, description: 'Loan is completed or already cancelled.', type: 'array{success: false, message: string}', examples: [[
+    #[Response(409, description: 'Loan is not pending (active, completed, or cancelled).', type: 'array{success: false, message: string}', examples: [[
         'success' => false,
         'message' => 'This loan can no longer be modified.',
     ]])]

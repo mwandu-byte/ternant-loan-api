@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'receipt_no',
@@ -34,9 +34,9 @@ class Receipt extends Model
         ];
     }
 
-    public function repayment(): HasOne
+    public function repayments(): HasMany
     {
-        return $this->hasOne(Repayment::class);
+        return $this->hasMany(Repayment::class);
     }
 
     public function receivedBy(): BelongsTo

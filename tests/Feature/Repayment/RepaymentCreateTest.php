@@ -87,10 +87,10 @@ class RepaymentCreateTest extends TestCase
 
         $response = $this->postJson('/api/v1/repayments', $this->payload($schedule), ['Authorization' => "Bearer {$token}"]);
 
-        $receiptId = $response->json('data.receipt_id');
+        $receiptId = $response->json('data.repayments.0.receipt_id');
         $this->assertNotNull($receiptId);
         $this->assertDatabaseHas('receipts', ['id' => $receiptId, 'amount' => '300000.00']);
-        $this->assertSame($receiptId, $response->json('data.receipt.id'));
+        $this->assertSame($receiptId, $response->json('data.repayments.0.receipt.id'));
     }
 
     public function test_repayment_references_the_correct_loan_and_schedule(): void
@@ -100,8 +100,8 @@ class RepaymentCreateTest extends TestCase
 
         $response = $this->postJson('/api/v1/repayments', $this->payload($schedule), ['Authorization' => "Bearer {$token}"]);
 
-        $this->assertSame($schedule->loan_id, $response->json('data.loan_id'));
-        $this->assertSame($schedule->id, $response->json('data.repayment_schedule_id'));
+        $this->assertSame($schedule->loan_id, $response->json('data.repayments.0.loan_id'));
+        $this->assertSame($schedule->id, $response->json('data.repayments.0.repayment_schedule_id'));
     }
 
     public function test_store_requires_authentication(): void
@@ -214,7 +214,7 @@ class RepaymentCreateTest extends TestCase
 
         $response->assertStatus(422)->assertJson([
             'success' => false,
-            'message' => 'Repayment amount exceeds the outstanding balance for this installment.',
+            'message' => 'Repayment amount exceeds the outstanding balance for this installment and any subsequent unpaid installments on this loan.',
         ]);
         $this->assertDatabaseCount('repayments', 0);
         $this->assertDatabaseCount('receipts', 0);
@@ -236,7 +236,7 @@ class RepaymentCreateTest extends TestCase
 
         $response->assertStatus(422)->assertJson([
             'success' => false,
-            'message' => 'Repayment amount exceeds the outstanding balance for this installment.',
+            'message' => 'Repayment amount exceeds the outstanding balance for this installment and any subsequent unpaid installments on this loan.',
         ]);
         $this->assertDatabaseCount('repayments', 1);
     }

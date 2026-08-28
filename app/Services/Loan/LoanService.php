@@ -231,14 +231,12 @@ class LoanService
 
     public function delete(Loan $loan): string
     {
-        if (in_array($loan->status, self::TERMINAL_STATUSES, true)) {
+        // Only a pending loan (never disbursed) can be removed. An active
+        // loan can no longer be cancelled at all — once disbursed, it can
+        // only move forward to completed — and terminal loans are already
+        // immutable.
+        if ($loan->status !== 'pending') {
             throw new LoanNotEditableException;
-        }
-
-        if ($loan->status === 'active') {
-            $loan->update(['status' => 'cancelled']);
-
-            return 'Loan cancelled successfully';
         }
 
         $loan->delete();
@@ -299,7 +297,7 @@ class LoanService
 
         $allowed = [
             'pending' => ['active', 'cancelled'],
-            'active' => ['completed', 'cancelled'],
+            'active' => ['completed'],
         ];
 
         if (! in_array($requested, $allowed[$current] ?? [], true)) {

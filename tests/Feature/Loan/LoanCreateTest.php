@@ -5,6 +5,7 @@ namespace Tests\Feature\Loan;
 use App\Models\Collateral;
 use App\Models\Customer;
 use App\Models\InterestRule;
+use App\Models\LoanAmountConfiguration;
 use App\Models\RepaymentFrequency;
 use App\Models\RepaymentTerm;
 use App\Models\User;
@@ -264,6 +265,46 @@ class LoanCreateTest extends TestCase
             'success' => false,
             'message' => 'Loan amount is outside the configured lending range.',
         ]);
+    }
+
+    public function test_principal_outside_the_configured_loan_amount_range_is_rejected(): void
+    {
+        // This exercises LoanAmountConfigurationService::assertWithinRange()
+        // specifically — distinct from test_principal_above_4000000_is_rejected
+        // above, which is actually rejected by the interest rule band lookup
+        // (no band covers > 4,000,000), not by the loan amount configuration.
+        // Widen the interest rule bands here so a match would otherwise exist
+        // for 5,000,000, isolating the configuration check as the cause.
+        InterestRule::factory()->create([
+            'minimum_amount' => 4000000.01, 'maximum_amount' => null, 'interest_rate' => 18.00, 'status' => 'active',
+        ]);
+        LoanAmountConfiguration::query()->update([
+            'minimum_amount' => 50000,
+            'maximum_amount' => 1000000,
+        ]);
+
+        $customer = Customer::factory()->create();
+        $token = $this->actingUserToken(['loans.create']);
+
+        $tooHigh = $this->postJson(
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['principal_amount' => 5000000]),
+            ['Authorization' => "Bearer {$token}"],
+        );
+
+        $tooHigh->assertStatus(422)->assertJson([
+            'success' => false,
+            'message' => 'Loan amount is outside the configured lending range.',
+        ]);
+        $this->assertDatabaseMissing('loans', ['customer_id' => $customer->id]);
+
+        $withinRange = $this->postJson(
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['principal_amount' => 800000]),
+            ['Authorization' => "Bearer {$token}"],
+        );
+
+        $withinRange->assertStatus(201);
     }
 
     public function test_due_date_is_calculated_from_start_date_and_repayment_term_for_monthly_frequency(): void

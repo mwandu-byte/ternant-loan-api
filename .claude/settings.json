@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:3000/ -o /tmp/dash.html)",
+      "Read(//tmp/**)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/login)",
+      "Bash(tail -60 /tmp/nextdev.log)",
+      "Read(//private/tmp/**)",
+      "Bash(npx tsc *)",
+      "Bash(npx next *)",
+      "Bash(chromium-cli --help)",
+      "Bash(npm ls *)",
+      "Bash(npx --yes playwright --version)",
+      "Bash(npx --yes playwright install chromium)"
+    ]
+  }
+}

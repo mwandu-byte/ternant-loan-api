@@ -13,6 +13,7 @@ use App\Models\Receipt;
 use App\Models\Repayment;
 use App\Models\RepaymentSchedule;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
@@ -72,15 +73,19 @@ class RepaymentService
 
     /**
      * @param  array<string, mixed>  $data
+     * @return Collection<int, Repayment>
      */
-    public function create(array $data): Repayment
+    public function create(array $data): Collection
     {
         $attempt = 0;
 
         while (true) {
             try {
                 return DB::transaction(function () use ($data) {
-                    $loan = Loan::find($data['loan_id']);
+                    // Locked before any schedule locks, so all concurrent
+                    // repayment writes against this loan fully serialize on
+                    // this one row.
+                    $loan = Loan::where('id', $data['loan_id'])->lockForUpdate()->first();
 
                     if ($loan === null) {
                         throw new LoanNotFoundException;
@@ -90,53 +95,119 @@ class RepaymentService
                     // so two concurrent repayments against the same schedule
                     // are serialized rather than both reading a stale
                     // outstanding amount.
-                    $schedule = RepaymentSchedule::where('id', $data['repayment_schedule_id'])
+                    $targetSchedule = RepaymentSchedule::where('id', $data['repayment_schedule_id'])
                         ->lockForUpdate()
                         ->first();
 
-                    if ($schedule === null) {
+                    if ($targetSchedule === null) {
                         throw new RepaymentScheduleNotFoundException;
                     }
 
-                    if ((int) $schedule->loan_id !== (int) $loan->id) {
+                    if ((int) $targetSchedule->loan_id !== (int) $loan->id) {
                         throw new RepaymentScheduleDoesNotBelongToLoanException;
                     }
 
-                    // Recomputed after the lock — never trust a pre-lock read.
-                    $totalRepaid = bcadd((string) Repayment::where('repayment_schedule_id', $schedule->id)->sum('amount'), '0', 2);
-                    $outstanding = bcsub((string) $schedule->total_amount, $totalRepaid, 2);
+                    // Every later installment the excess could roll forward
+                    // into — locked up front alongside the target so the
+                    // whole allocation is computed against a consistent,
+                    // race-free snapshot.
+                    $forwardSchedules = RepaymentSchedule::where('loan_id', $loan->id)
+                        ->where('installment_number', '>', $targetSchedule->installment_number)
+                        ->orderBy('installment_number')
+                        ->lockForUpdate()
+                        ->get();
+
+                    $candidates = (new Collection([$targetSchedule]))->concat($forwardSchedules);
+
+                    // Recomputed after the locks — never trust a pre-lock read.
+                    $repaidTotals = Repayment::whereIn('repayment_schedule_id', $candidates->pluck('id'))
+                        ->selectRaw('repayment_schedule_id, SUM(amount) as total')
+                        ->groupBy('repayment_schedule_id')
+                        ->pluck('total', 'repayment_schedule_id');
+
+                    $outstandingBySchedule = [];
+
+                    foreach ($candidates as $candidate) {
+                        $repaid = bcadd((string) ($repaidTotals[$candidate->id] ?? '0'), '0', 2);
+                        $outstanding = bcsub((string) $candidate->total_amount, $repaid, 2);
+
+                        if (bccomp($outstanding, '0.00', 2) === -1) {
+                            $outstanding = '0.00';
+                        }
+
+                        $outstandingBySchedule[$candidate->id] = $outstanding;
+                    }
 
                     $amount = bcadd((string) $data['amount'], '0', 2);
 
-                    if (bccomp($amount, $outstanding, 2) === 1) {
+                    // A payment must target an installment that actually has
+                    // something owed on it — it never auto-skips forward
+                    // from an already-settled target to a later one.
+                    if (bccomp($outstandingBySchedule[$targetSchedule->id], '0.00', 2) === 0) {
                         throw new RepaymentExceedsOutstandingAmountException;
                     }
 
-                    $receipt = $this->createReceipt($data, $amount);
+                    $totalCapacity = array_reduce(
+                        $outstandingBySchedule,
+                        fn (string $carry, string $outstanding) => bcadd($carry, $outstanding, 2),
+                        '0.00',
+                    );
 
-                    $repayment = Repayment::create([
-                        'loan_id' => $loan->id,
-                        'repayment_schedule_id' => $schedule->id,
-                        'receipt_id' => $receipt->id,
-                        'amount' => $amount,
-                        'repayment_date' => $data['repayment_date'],
-                        'notes' => $data['notes'] ?? null,
-                        'received_by' => auth()->id(),
-                    ]);
-
-                    $newTotalRepaid = bcadd($totalRepaid, $amount, 2);
-                    $newOutstanding = bcsub((string) $schedule->total_amount, $newTotalRepaid, 2);
-
-                    if (bccomp($newOutstanding, '0.00', 2) === -1) {
-                        $newOutstanding = '0.00';
+                    if (bccomp($amount, $totalCapacity, 2) === 1) {
+                        throw new RepaymentExceedsOutstandingAmountException;
                     }
 
-                    $schedule->update([
-                        'outstanding_amount' => $newOutstanding,
-                        'status' => bccomp($newOutstanding, '0.00', 2) === 0 ? 'paid' : 'partially_paid',
-                    ]);
+                    // One receipt for the whole payment, however many
+                    // installments it ends up covering.
+                    $receipt = $this->createReceipt($data, $amount);
 
-                    return $repayment->load(['receipt', 'loan', 'repaymentSchedule']);
+                    $remaining = $amount;
+                    $created = new Collection;
+
+                    foreach ($candidates as $schedule) {
+                        if (bccomp($remaining, '0.00', 2) === 0) {
+                            break;
+                        }
+
+                        $scheduleOutstanding = $outstandingBySchedule[$schedule->id];
+
+                        if (bccomp($scheduleOutstanding, '0.00', 2) === 0) {
+                            continue;
+                        }
+
+                        $portion = bccomp($remaining, $scheduleOutstanding, 2) === 1
+                            ? $scheduleOutstanding
+                            : $remaining;
+
+                        $created->push(Repayment::create([
+                            'loan_id' => $loan->id,
+                            'repayment_schedule_id' => $schedule->id,
+                            'receipt_id' => $receipt->id,
+                            'amount' => $portion,
+                            'repayment_date' => $data['repayment_date'],
+                            'notes' => $data['notes'] ?? null,
+                            'received_by' => auth()->id(),
+                        ]));
+
+                        $newOutstanding = bcsub($scheduleOutstanding, $portion, 2);
+
+                        $schedule->update([
+                            'outstanding_amount' => $newOutstanding,
+                            'status' => bccomp($newOutstanding, '0.00', 2) === 0 ? 'paid' : 'partially_paid',
+                        ]);
+
+                        $remaining = bcsub($remaining, $portion, 2);
+                    }
+
+                    // Only ever active -> completed, and only once every
+                    // installment on the loan is fully paid.
+                    if ($loan->status === 'active'
+                        && $loan->repaymentSchedules()->where('status', '!=', 'paid')->doesntExist()
+                    ) {
+                        $loan->update(['status' => 'completed']);
+                    }
+
+                    return $created->load(['receipt', 'loan', 'repaymentSchedule']);
                 });
             } catch (QueryException $e) {
                 if ($this->isDuplicateReferenceNoError($e)) {

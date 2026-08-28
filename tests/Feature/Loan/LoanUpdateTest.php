@@ -180,7 +180,7 @@ class LoanUpdateTest extends TestCase
         $this->assertSame('completed', $response->json('data.status'));
     }
 
-    public function test_active_loan_can_transition_to_cancelled(): void
+    public function test_active_loan_cannot_transition_to_cancelled(): void
     {
         $customer = Customer::factory()->create();
         $loan = Loan::factory()->active()->create(['customer_id' => $customer->id]);
@@ -192,8 +192,8 @@ class LoanUpdateTest extends TestCase
             ['Authorization' => "Bearer {$token}"],
         );
 
-        $response->assertStatus(200);
-        $this->assertSame('cancelled', $response->json('data.status'));
+        $response->assertStatus(422)->assertJsonValidationErrors(['status']);
+        $this->assertDatabaseHas('loans', ['id' => $loan->id, 'status' => 'active']);
     }
 
     public function test_active_loan_rejects_changes_to_repayment_frequency(): void

@@ -65,7 +65,7 @@ class RepaymentReceiptNumberTest extends TestCase
             'payment_method' => 'cash',
         ], ['Authorization' => "Bearer {$token}"])->assertStatus(201);
 
-        return $response->json('data.receipt.receipt_no');
+        return $response->json('data.repayments.0.receipt.receipt_no');
     }
 
     public function test_receipt_numbers_are_sequential_and_zero_padded(): void

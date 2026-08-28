@@ -61,7 +61,7 @@ class LoanDeleteTest extends TestCase
         $this->assertDatabaseMissing('loans', ['id' => $loan->id]);
     }
 
-    public function test_active_loan_is_soft_cancelled_and_row_is_kept(): void
+    public function test_active_loan_cannot_be_deleted(): void
     {
         $customer = Customer::factory()->create();
         $loan = Loan::factory()->active()->create(['customer_id' => $customer->id]);
@@ -73,12 +73,11 @@ class LoanDeleteTest extends TestCase
             ['Authorization' => "Bearer {$token}"],
         );
 
-        $response->assertStatus(200)->assertJson([
-            'success' => true,
-            'message' => 'Loan cancelled successfully',
-            'data' => null,
+        $response->assertStatus(409)->assertJson([
+            'success' => false,
+            'message' => 'This loan can no longer be modified.',
         ]);
-        $this->assertDatabaseHas('loans', ['id' => $loan->id, 'status' => 'cancelled']);
+        $this->assertDatabaseHas('loans', ['id' => $loan->id, 'status' => 'active']);
     }
 
     public function test_completed_loan_cannot_be_deleted(): void

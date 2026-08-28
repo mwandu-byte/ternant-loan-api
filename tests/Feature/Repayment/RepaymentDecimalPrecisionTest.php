@@ -69,8 +69,8 @@ class RepaymentDecimalPrecisionTest extends TestCase
         ], ['Authorization' => "Bearer {$token}"]);
 
         $response->assertStatus(201);
-        $this->assertSame('1234.56', $response->json('data.amount'));
-        $this->assertSame('1234.56', $response->json('data.receipt.amount'));
+        $this->assertSame('1234.56', $response->json('data.repayments.0.amount'));
+        $this->assertSame('1234.56', $response->json('data.repayments.0.receipt.amount'));
         $this->assertSame('0.00', $schedule->fresh()->outstanding_amount);
     }
 

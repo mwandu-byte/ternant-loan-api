@@ -20,20 +20,27 @@ use Illuminate\Http\Request;
  * schedule — it is a real financial transaction, not the expected
  * repayment plan itself (see the Repayment Schedules group for that).
  *
- * Creating a repayment always creates two records atomically, in a
- * single database transaction: a Receipt (the money actually
- * received — receipt number, amount, payment method, date) and a
- * Repayment (the record of how much of that receipt was applied to
- * `repayment_schedule_id`). If either fails, both are rolled back —
- * there is never a receipt without its repayment, or vice versa. The
- * targeted installment's `outstanding_amount`/`status` are
- * recalculated from the sum of all repayments against it in the same
- * transaction.
+ * Creating a repayment always creates one Receipt (the money actually
+ * received — receipt number, amount, payment method, date) atomically
+ * with one or more Repayment records, in a single database
+ * transaction. If any part fails, everything is rolled back — there
+ * is never a receipt without at least one repayment, or vice versa.
  *
- * This implementation does not support overpayment: a repayment
- * amount greater than the installment's current outstanding balance
- * is rejected outright — it is never partially applied, never
- * auto-rolled into another installment, and never silently reduced.
+ * If `amount` exceeds the targeted installment's outstanding balance,
+ * the excess is not rejected — it rolls forward and is applied to the
+ * loan's subsequent unpaid installments in order, one Repayment
+ * record per installment it touches (all sharing the one Receipt).
+ * Each affected installment's `outstanding_amount`/`status` is
+ * recalculated in the same transaction. The request is only rejected
+ * if `amount` exceeds the targeted installment's balance plus every
+ * later unpaid installment's balance combined, or if the targeted
+ * installment itself is already fully paid (a payment never
+ * auto-skips forward from an already-settled target).
+ *
+ * If this repayment causes every installment on the loan to become
+ * fully paid, the loan's status is automatically transitioned from
+ * `active` to `completed` in the same transaction.
+ *
  * Repayments are immutable once created — there are no update or
  * delete endpoints for them.
  *
@@ -113,16 +120,20 @@ class RepaymentController extends Controller
     /**
      * Record a repayment
      *
-     * Records that a customer has actually paid `amount` against the
-     * installment identified by `repayment_schedule_id`. Creates a
-     * Receipt and a Repayment atomically, in one database transaction,
-     * and recalculates the targeted installment's outstanding balance
-     * and status. `repayment_schedule_id` must belong to `loan_id` —
-     * this is verified explicitly, never assumed. The amount must not
-     * exceed the installment's current outstanding balance;
-     * overpayment is rejected, not partially applied.
+     * Records that a customer has actually paid `amount` starting
+     * against the installment identified by `repayment_schedule_id`.
+     * `repayment_schedule_id` must belong to `loan_id` — this is
+     * verified explicitly, never assumed. Creates one Receipt
+     * atomically with one or more Repayment records — more than one
+     * only when `amount` exceeds the targeted installment's
+     * outstanding balance and rolls forward into later unpaid
+     * installments — recalculating every affected installment's
+     * outstanding balance and status in the same transaction. If this
+     * payment fully settles the loan's last unpaid installment, the
+     * loan is automatically transitioned to `completed`. Returns every
+     * Repayment record created by this request, in installment order.
      */
-    #[Response(201, description: 'Repayment recorded.', type: 'array{success: true, message: string, data: '.self::REPAYMENT_SCHEMA.'}')]
+    #[Response(201, description: 'Repayment recorded.', type: 'array{success: true, message: string, data: array{repayments: '.self::REPAYMENT_SCHEMA.'[]}}')]
     #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[
         'success' => false,
         'message' => 'Unauthenticated',
@@ -139,17 +150,17 @@ class RepaymentController extends Controller
         'success' => false,
         'message' => 'A receipt already exists with this reference number.',
     ]])]
-    #[Response(422, description: 'Validation failed, the repayment schedule does not belong to the supplied loan, or the amount exceeds the outstanding balance.', type: self::VALIDATION_ERROR_SCHEMA, examples: [[
+    #[Response(422, description: 'Validation failed, the repayment schedule does not belong to the supplied loan, the targeted installment is already fully paid, or the amount exceeds the total remaining outstanding balance on the loan.', type: self::VALIDATION_ERROR_SCHEMA, examples: [[
         'success' => false,
         'message' => 'The given data was invalid.',
         'errors' => ['amount' => ['The amount field must be greater than 0.']],
     ]])]
     public function store(StoreRepaymentRequest $request): JsonResponse
     {
-        $repayment = $this->repaymentService->create($request->validated());
+        $repayments = $this->repaymentService->create($request->validated());
 
         return ApiResponse::success(
-            new RepaymentResource($repayment),
+            ['repayments' => RepaymentResource::collection($repayments)->resolve()],
             'Repayment recorded successfully',
             201,
         );

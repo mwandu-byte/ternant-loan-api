@@ -90,7 +90,7 @@ class RepaymentDuplicateReferenceTest extends TestCase
         // transaction's records must be untouched.
         $this->assertDatabaseCount('receipts', 1);
         $this->assertDatabaseCount('repayments', 1);
-        $this->assertDatabaseHas('repayments', ['id' => $first->json('data.id')]);
+        $this->assertDatabaseHas('repayments', ['id' => $first->json('data.repayments.0.id')]);
         $this->assertSame('pending', $secondSchedule->fresh()->status);
         $this->assertSame('100000.00', $secondSchedule->fresh()->outstanding_amount);
     }
