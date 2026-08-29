@@ -64,7 +64,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(fn () => null);
     })
     ->withSchedule(function (Schedule $schedule): void {
-        $schedule->command('penalties:accrue')->daily()->timezone(config('app.timezone'));
+        $schedule->command('penalties:accrue')->dailyAt('01:00')->timezone(config('app.timezone'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
