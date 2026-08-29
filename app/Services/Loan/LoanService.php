@@ -81,7 +81,7 @@ class LoanService
         $customer = Customer::findOrFail($data['customer_id']);
         $principal = (float) $data['principal_amount'];
 
-        $this->loanAmountConfigurationService->assertWithinRange($principal);
+        // $this->loanAmountConfigurationService->assertWithinRange($principal);
 
         $interestRule = $this->interestRuleService->resolveApplicableRule($principal);
         $configuredRate = (float) $interestRule->interest_rate;
