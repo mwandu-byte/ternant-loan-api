@@ -10,6 +10,7 @@ use App\Exceptions\Customer\CustomerHasRelatedRecordsException;
 use App\Exceptions\Loan\LoanAmountOutOfRangeException;
 use App\Exceptions\Loan\LoanNotEditableException;
 use App\Exceptions\Loan\LoanNotFoundException;
+use App\Exceptions\Loan\NoApplicableInterestRuleException;
 use App\Exceptions\Payment\InvalidDisbursementAmountException;
 use App\Exceptions\Payment\LoanAlreadyDisbursedException;
 use App\Exceptions\Payment\LoanNotEligibleForDisbursementException;
@@ -163,6 +164,12 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (LoanAmountOutOfRangeException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error($e->getMessage(), 422);
+            }
+        });
+
+        $exceptions->render(function (NoApplicableInterestRuleException $e, Request $request) {
             if ($request->is('api/*')) {
                 return ApiResponse::error($e->getMessage(), 422);
             }

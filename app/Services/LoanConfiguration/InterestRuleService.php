@@ -2,7 +2,7 @@
 
 namespace App\Services\LoanConfiguration;
 
-use App\Exceptions\Loan\LoanAmountOutOfRangeException;
+use App\Exceptions\Loan\NoApplicableInterestRuleException;
 use App\Models\InterestRule;
 use App\Support\AmountRangeOverlap;
 use Illuminate\Database\Eloquent\Collection;
@@ -70,7 +70,7 @@ class InterestRuleService
             ->first();
 
         if ($rule === null) {
-            throw new LoanAmountOutOfRangeException;
+            throw new NoApplicableInterestRuleException;
         }
 
         return $rule;

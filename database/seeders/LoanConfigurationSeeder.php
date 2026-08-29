@@ -15,13 +15,17 @@ class LoanConfigurationSeeder extends Seeder
     public function run(): void
     {
         InterestRule::updateOrCreate(
-            ['minimum_amount' => 0, 'maximum_amount' => 499999.99],
-            ['interest_rate' => 30.00, 'calculation_method' => 'percentage', 'status' => 'active'],
+            ['minimum_amount' => 0],
+            ['maximum_amount' => 499999.99, 'interest_rate' => 30.00, 'calculation_method' => 'percentage', 'status' => 'active'],
         );
 
+        // No upper limit — mirrors the open-ended top tier already used for
+        // PenaltyRule below. Without this, any principal above the old
+        // 4,000,000 ceiling has no interest rate to resolve to and loan
+        // creation fails, regardless of what LoanAmountConfiguration allows.
         InterestRule::updateOrCreate(
-            ['minimum_amount' => 500000, 'maximum_amount' => 4000000],
-            ['interest_rate' => 22.00, 'calculation_method' => 'percentage', 'status' => 'active'],
+            ['minimum_amount' => 500000],
+            ['maximum_amount' => null, 'interest_rate' => 22.00, 'calculation_method' => 'percentage', 'status' => 'active'],
         );
 
         LoanAmountConfiguration::query()->first()?->update([

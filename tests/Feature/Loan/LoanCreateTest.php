@@ -252,8 +252,15 @@ class LoanCreateTest extends TestCase
         $this->assertSame('1220000.00', $response->json('data.total_amount'));
     }
 
-    public function test_principal_above_4000000_is_rejected(): void
+    public function test_principal_above_the_highest_interest_rule_band_is_rejected(): void
     {
+        // This is rejected by the interest rule band lookup (no band covers
+        // > 4,000,000 in this file's default setup) — not by the loan
+        // amount configuration, which defaults to an unbounded max per the
+        // migration. See test_principal_outside_the_configured_loan_amount_range_is_rejected
+        // below for the actual config-driven rejection, and
+        // test_no_interest_rule_covers_the_amount_is_a_distinct_error_from_loan_amount_range
+        // for why these two failure conditions must never share a message.
         $customer = Customer::factory()->create();
         $token = $this->actingUserToken(['loans.create']);
 
@@ -265,14 +272,71 @@ class LoanCreateTest extends TestCase
 
         $response->assertStatus(422)->assertJson([
             'success' => false,
-            'message' => 'Loan amount is outside the configured lending range.',
+            'message' => 'No active interest rate rule covers this loan amount. An administrator must configure one before this loan can be created.',
         ]);
+        $this->assertDatabaseMissing('loans', ['customer_id' => $customer->id]);
+    }
+
+    public function test_no_interest_rule_covers_the_amount_is_a_distinct_error_from_loan_amount_range(): void
+    {
+        // Regression test: LoanAmountConfiguration.maximum_amount = null
+        // ("no upper limit") must not be blamed for a rejection that is
+        // actually caused by a gap in the interest rule bands. Previously
+        // both failure conditions threw the same LoanAmountOutOfRangeException
+        // with the same message, which made this exact scenario look like
+        // the loan amount configuration was broken when it was not.
+        LoanAmountConfiguration::query()->update([
+            'minimum_amount' => 0,
+            'maximum_amount' => null,
+        ]);
+
+        $customer = Customer::factory()->create();
+        $token = $this->actingUserToken(['loans.create']);
+
+        $response = $this->postJson(
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['principal_amount' => 5000000]),
+            ['Authorization' => "Bearer {$token}"],
+        );
+
+        $response->assertStatus(422)->assertJson([
+            'success' => false,
+            'message' => 'No active interest rate rule covers this loan amount. An administrator must configure one before this loan can be created.',
+        ]);
+        $this->assertDatabaseMissing('loans', ['customer_id' => $customer->id]);
+    }
+
+    public function test_principal_above_4000000_succeeds_once_the_top_interest_rule_band_is_open_ended(): void
+    {
+        // Reproduces the reported bug end-to-end: LoanAmountConfiguration
+        // says there is no maximum, and once the top interest rule band is
+        // also open-ended (as LoanConfigurationSeeder now seeds it), a
+        // principal that was previously rejected succeeds.
+        LoanAmountConfiguration::query()->update([
+            'minimum_amount' => 0,
+            'maximum_amount' => null,
+        ]);
+        InterestRule::query()->where('minimum_amount', 500000)->update(['maximum_amount' => null]);
+
+        $customer = Customer::factory()->create();
+        $token = $this->actingUserToken(['loans.create']);
+
+        $response = $this->postJson(
+            '/api/v1/loans',
+            $this->validPayload($customer->id, ['principal_amount' => 5000000]),
+            ['Authorization' => "Bearer {$token}"],
+        );
+
+        $response->assertStatus(201);
+        $this->assertSame('22.00', $response->json('data.interest_rate'));
+        $this->assertSame('5000000.00', $response->json('data.principal_amount'));
     }
 
     public function test_principal_outside_the_configured_loan_amount_range_is_rejected(): void
     {
         // This exercises LoanAmountConfigurationService::assertWithinRange()
-        // specifically — distinct from test_principal_above_4000000_is_rejected
+        // specifically — distinct from
+        // test_principal_above_the_highest_interest_rule_band_is_rejected
         // above, which is actually rejected by the interest rule band lookup
         // (no band covers > 4,000,000), not by the loan amount configuration.
         // Widen the interest rule bands here so a match would otherwise exist
