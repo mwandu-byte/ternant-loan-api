@@ -201,9 +201,7 @@ class RepaymentService
 
                     // Only ever active -> completed, and only once every
                     // installment on the loan is fully paid.
-                    if ($loan->status === 'active'
-                        && $loan->repaymentSchedules()->where('status', '!=', 'paid')->doesntExist()
-                    ) {
+                    if ($loan->status === 'active' && $loan->isFullyPaid()) {
                         $loan->update(['status' => 'completed']);
                     }
 

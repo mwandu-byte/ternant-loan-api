@@ -6,6 +6,7 @@ use App\Models\Collateral;
 use App\Models\Customer;
 use App\Models\Loan;
 use App\Models\RepaymentFrequency;
+use App\Models\RepaymentSchedule;
 use App\Models\RepaymentTerm;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -168,6 +169,7 @@ class LoanUpdateTest extends TestCase
     {
         $customer = Customer::factory()->create();
         $loan = Loan::factory()->active()->create(['customer_id' => $customer->id]);
+        RepaymentSchedule::factory()->paid()->create(['loan_id' => $loan->id]);
         $token = $this->actingUserToken(['loans.update']);
 
         $response = $this->putJson(
@@ -178,6 +180,46 @@ class LoanUpdateTest extends TestCase
 
         $response->assertStatus(200);
         $this->assertSame('completed', $response->json('data.status'));
+    }
+
+    public function test_active_loan_with_outstanding_balance_cannot_be_marked_completed(): void
+    {
+        $customer = Customer::factory()->create();
+        $loan = Loan::factory()->active()->create(['customer_id' => $customer->id]);
+        RepaymentSchedule::factory()->create([
+            'loan_id' => $loan->id,
+            'total_amount' => 610000,
+            'outstanding_amount' => 10000,
+            'status' => 'partially_paid',
+        ]);
+        $token = $this->actingUserToken(['loans.update']);
+
+        $response = $this->putJson(
+            "/api/v1/loans/{$loan->id}",
+            ['status' => 'completed'],
+            ['Authorization' => "Bearer {$token}"],
+        );
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['status']);
+        $this->assertSame('active', $loan->fresh()->status);
+    }
+
+    public function test_active_loan_with_no_schedules_cannot_be_marked_completed(): void
+    {
+        $customer = Customer::factory()->create();
+        $loan = Loan::factory()->active()->create(['customer_id' => $customer->id]);
+        $token = $this->actingUserToken(['loans.update']);
+
+        $response = $this->putJson(
+            "/api/v1/loans/{$loan->id}",
+            ['status' => 'completed'],
+            ['Authorization' => "Bearer {$token}"],
+        );
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['status']);
+        $this->assertSame('active', $loan->fresh()->status);
     }
 
     public function test_active_loan_cannot_transition_to_cancelled(): void

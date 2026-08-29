@@ -184,6 +184,12 @@ class LoanService
 
         if (array_key_exists('status', $data)) {
             $this->assertValidStatusTransition($loan->status, $data['status']);
+
+            if ($data['status'] === 'completed' && ! $loan->isFullyPaid()) {
+                throw ValidationException::withMessages([
+                    'status' => ['Cannot mark this loan as completed while it still has an outstanding balance.'],
+                ]);
+            }
         }
 
         $oldStatus = $loan->status;

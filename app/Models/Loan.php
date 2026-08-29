@@ -80,4 +80,13 @@ class Loan extends Model
     {
         return $this->hasMany(Penalty::class);
     }
+
+    // A loan with no schedules at all must never count as "fully paid" —
+    // only a loan that has gone through activation (which generates its
+    // schedule) and had every installment settled to 'paid' qualifies.
+    public function isFullyPaid(): bool
+    {
+        return $this->repaymentSchedules()->exists()
+            && $this->repaymentSchedules()->where('status', '!=', 'paid')->doesntExist();
+    }
 }
