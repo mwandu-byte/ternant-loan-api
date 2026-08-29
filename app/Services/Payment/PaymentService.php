@@ -19,7 +19,7 @@ class PaymentService
      */
     public function list(array $filters): LengthAwarePaginator
     {
-        $query = Payment::query()->with('loan');
+        $query = Payment::query()->visibleTo(auth()->user())->with('loan');
 
         if (! empty($filters['loan_id'])) {
             $query->where('loan_id', $filters['loan_id']);

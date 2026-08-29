@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Support\AccessScope;
 use Database\Factories\LoanFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'customer_id',
+    'created_by',
     'reference_no',
     'principal_amount',
     'interest_rate',
@@ -49,6 +52,15 @@ class Loan extends Model
             'discount_rate' => 'decimal:2',
             'applied_interest_rate' => 'decimal:2',
         ];
+    }
+
+    /**
+     * @param  Builder<Loan>  $query
+     * @return Builder<Loan>
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        return AccessScope::restrictToOwner($query, $user);
     }
 
     public function customer(): BelongsTo

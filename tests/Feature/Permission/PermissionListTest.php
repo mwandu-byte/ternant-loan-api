@@ -26,6 +26,8 @@ class PermissionListTest extends TestCase
      */
     private function actingUserToken(array $permissions): string
     {
+        $permissions[] = 'data.view-all';
+
         foreach ($permissions as $permission) {
             Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'api']);
         }
@@ -48,8 +50,8 @@ class PermissionListTest extends TestCase
         $response = $this->getJson('/api/v1/permissions', ['Authorization' => "Bearer {$token}"]);
 
         $response->assertStatus(200)->assertJson(['success' => true]);
-        // 2 created + permissions.view itself.
-        $this->assertCount(3, $response->json('data.permissions'));
+        // 2 created + permissions.view + data.view-all (granted by actingUserToken()).
+        $this->assertCount(4, $response->json('data.permissions'));
     }
 
     public function test_list_requires_authentication(): void
@@ -79,6 +81,7 @@ class PermissionListTest extends TestCase
 
         $response->assertStatus(200);
         $this->assertCount(2, $response->json('data.permissions'));
-        $this->assertSame(4, $response->json('data.pagination.total'));
+        // 3 created + permissions.view + data.view-all (granted by actingUserToken()).
+        $this->assertSame(5, $response->json('data.pagination.total'));
     }
 }

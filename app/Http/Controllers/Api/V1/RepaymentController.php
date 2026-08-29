@@ -188,6 +188,7 @@ class RepaymentController extends Controller
     public function show(int $repayment): JsonResponse
     {
         $model = $this->repaymentService->find($repayment);
+        $this->authorize('view', $model);
 
         return ApiResponse::success(new RepaymentResource($model), 'Repayment retrieved successfully');
     }

@@ -3,6 +3,7 @@
 namespace App\Services\Reports;
 
 use App\Models\Payment;
+use App\Support\AccessScope;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -34,7 +35,7 @@ class DisbursementReportService
      */
     private function baseQuery(array $filters): Builder
     {
-        $query = Payment::query();
+        $query = AccessScope::restrictViaLoan(Payment::query(), auth()->user());
 
         if (! empty($filters['customer_id'])) {
             $query->whereHas('loan', fn (Builder $q) => $q->where('customer_id', $filters['customer_id']));

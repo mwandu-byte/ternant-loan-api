@@ -2,14 +2,17 @@
 
 namespace App\Models;
 
+use App\Support\AccessScope;
 use Database\Factories\CustomerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 #[Fillable([
+    'created_by',
     'full_name',
     'phone',
     'email',
@@ -24,6 +27,15 @@ class Customer extends Model
 {
     /** @use HasFactory<CustomerFactory> */
     use HasFactory;
+
+    /**
+     * @param  Builder<Customer>  $query
+     * @return Builder<Customer>
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        return AccessScope::restrictToOwner($query, $user);
+    }
 
     public function collaterals(): HasMany
     {

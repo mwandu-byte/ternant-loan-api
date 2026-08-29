@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Support\AccessScope;
 use Database\Factories\PaymentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -31,6 +33,15 @@ class Payment extends Model
             'amount' => 'decimal:2',
             'payment_date' => 'date',
         ];
+    }
+
+    /**
+     * @param  Builder<Payment>  $query
+     * @return Builder<Payment>
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        return AccessScope::restrictToOwnerOrActor($query, $user, 'paid_by');
     }
 
     public function loan(): BelongsTo

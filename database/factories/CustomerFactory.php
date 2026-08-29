@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Customer;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -37,6 +38,13 @@ class CustomerFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'status' => 'inactive',
+        ]);
+    }
+
+    public function ownedBy(User $user): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'created_by' => $user->id,
         ]);
     }
 }

@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Customer;
 use App\Models\Loan;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Carbon;
 
@@ -59,5 +60,10 @@ class LoanFactory extends Factory
     public function cancelled(): static
     {
         return $this->state(fn (array $attributes) => ['status' => 'cancelled']);
+    }
+
+    public function ownedBy(User $user): static
+    {
+        return $this->state(fn (array $attributes) => ['created_by' => $user->id]);
     }
 }

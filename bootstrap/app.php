@@ -42,6 +42,7 @@ use Spatie\Permission\Exceptions\UnauthorizedException as PermissionUnauthorized
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -90,6 +91,18 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (AuthorizationException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::forbidden();
+            }
+        });
+
+        // A status-less AuthorizationException (the kind $this->authorize()
+        // throws from a Policy returning false) is converted to this
+        // exception by the framework's own prepareException() step before
+        // any render() callback runs — so the AuthorizationException
+        // handler above never actually fires for that path. This is the
+        // handler that does.
+        $exceptions->render(function (AccessDeniedHttpException $e, Request $request) {
             if ($request->is('api/*')) {
                 return ApiResponse::forbidden();
             }

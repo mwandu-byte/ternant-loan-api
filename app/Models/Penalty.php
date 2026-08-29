@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Support\AccessScope;
 use Database\Factories\PenaltyFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -33,6 +35,15 @@ class Penalty extends Model
             'period_start_date' => 'date',
             'applied_date' => 'date',
         ];
+    }
+
+    /**
+     * @param  Builder<Penalty>  $query
+     * @return Builder<Penalty>
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        return AccessScope::restrictViaLoan($query, $user);
     }
 
     public function loan(): BelongsTo

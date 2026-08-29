@@ -2,6 +2,7 @@
 
 namespace App\Services\Reports;
 
+use App\Support\AccessScope;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
@@ -47,6 +48,10 @@ class CashFlowReportService
             ->join('customers', 'customers.id', '=', 'loans.customer_id')
             ->selectRaw("'disbursement' as type, payments.id as source_id, payments.payment_date as txn_date, payments.amount as amount, payments.reference_no as reference, payments.payment_method as method, payments.notes as notes, payments.loan_id as loan_id, loans.reference_no as loan_reference, loans.customer_id as customer_id, customers.full_name as customer_name, payments.paid_by as user_id");
 
+        if (! AccessScope::isUnrestricted(auth()->user())) {
+            $query->where('loans.created_by', auth()->id());
+        }
+
         if (! empty($filters['customer_id'])) {
             $query->where('loans.customer_id', $filters['customer_id']);
         }
@@ -80,6 +85,10 @@ class CashFlowReportService
             ->join('customers', 'customers.id', '=', 'loans.customer_id')
             ->join('receipts', 'receipts.id', '=', 'repayments.receipt_id')
             ->selectRaw("'collection' as type, repayments.id as source_id, repayments.repayment_date as txn_date, repayments.amount as amount, receipts.receipt_no as reference, receipts.payment_method as method, repayments.notes as notes, repayments.loan_id as loan_id, loans.reference_no as loan_reference, loans.customer_id as customer_id, customers.full_name as customer_name, repayments.received_by as user_id");
+
+        if (! AccessScope::isUnrestricted(auth()->user())) {
+            $query->where('loans.created_by', auth()->id());
+        }
 
         if (! empty($filters['customer_id'])) {
             $query->where('loans.customer_id', $filters['customer_id']);
@@ -137,6 +146,10 @@ class CashFlowReportService
         if (empty($filters['type']) || $filters['type'] === 'disbursement') {
             $out = DB::table('payments')
                 ->join('loans', 'loans.id', '=', 'payments.loan_id')
+                ->when(
+                    ! AccessScope::isUnrestricted(auth()->user()),
+                    fn ($q) => $q->where('loans.created_by', auth()->id()),
+                )
                 ->when(! empty($filters['customer_id']), fn ($q) => $q->where('loans.customer_id', $filters['customer_id']))
                 ->when(! empty($filters['user_id']), fn ($q) => $q->where('payments.paid_by', $filters['user_id']))
                 ->when(! empty($filters['date_from']), fn ($q) => $q->whereDate('payments.payment_date', '>=', $filters['date_from']))
@@ -148,6 +161,10 @@ class CashFlowReportService
         if (empty($filters['type']) || $filters['type'] === 'collection') {
             $in = DB::table('repayments')
                 ->join('loans', 'loans.id', '=', 'repayments.loan_id')
+                ->when(
+                    ! AccessScope::isUnrestricted(auth()->user()),
+                    fn ($q) => $q->where('loans.created_by', auth()->id()),
+                )
                 ->when(! empty($filters['customer_id']), fn ($q) => $q->where('loans.customer_id', $filters['customer_id']))
                 ->when(! empty($filters['user_id']), fn ($q) => $q->where('repayments.received_by', $filters['user_id']))
                 ->when(! empty($filters['date_from']), fn ($q) => $q->whereDate('repayments.repayment_date', '>=', $filters['date_from']))

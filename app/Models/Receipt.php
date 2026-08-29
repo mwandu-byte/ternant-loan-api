@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Support\AccessScope;
 use Database\Factories\ReceiptFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -32,6 +34,15 @@ class Receipt extends Model
             'amount' => 'decimal:2',
             'receipt_date' => 'date',
         ];
+    }
+
+    /**
+     * @param  Builder<Receipt>  $query
+     * @return Builder<Receipt>
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        return AccessScope::restrictToOwnerOrActor($query, $user, 'received_by', 'repayments.loan');
     }
 
     public function repayments(): HasMany

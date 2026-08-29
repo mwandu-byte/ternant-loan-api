@@ -5,6 +5,7 @@ namespace App\Services\Reports;
 use App\Models\Penalty;
 use App\Models\RepaymentSchedule;
 use App\Services\Repayment\OverdueService;
+use App\Support\AccessScope;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -42,7 +43,10 @@ class OverdueLoansReportService
      */
     private function baseQuery(array $filters): Builder
     {
-        $query = $this->overdueService->applyOverdueScope(RepaymentSchedule::query());
+        $query = AccessScope::restrictViaLoan(
+            $this->overdueService->applyOverdueScope(RepaymentSchedule::query()),
+            auth()->user(),
+        );
 
         if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);

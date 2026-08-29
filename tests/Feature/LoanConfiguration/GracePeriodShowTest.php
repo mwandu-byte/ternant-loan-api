@@ -26,6 +26,8 @@ class GracePeriodShowTest extends TestCase
      */
     private function actingUserToken(array $permissions): string
     {
+        $permissions[] = 'data.view-all';
+
         foreach ($permissions as $permission) {
             Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'api']);
         }

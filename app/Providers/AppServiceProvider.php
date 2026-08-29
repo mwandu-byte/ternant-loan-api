@@ -2,6 +2,18 @@
 
 namespace App\Providers;
 
+use App\Models\Customer;
+use App\Models\Loan;
+use App\Models\Payment;
+use App\Models\Penalty;
+use App\Models\Repayment;
+use App\Models\RepaymentSchedule;
+use App\Policies\CustomerPolicy;
+use App\Policies\LoanPolicy;
+use App\Policies\PaymentPolicy;
+use App\Policies\PenaltyPolicy;
+use App\Policies\RepaymentPolicy;
+use App\Policies\RepaymentSchedulePolicy;
 use App\Services\Repayment\OverdueService;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\SecurityDocumentation\MiddlewareAuthSecurityStrategy;
@@ -35,6 +47,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::policy(Customer::class, CustomerPolicy::class);
+        Gate::policy(Loan::class, LoanPolicy::class);
+        Gate::policy(Repayment::class, RepaymentPolicy::class);
+        Gate::policy(Payment::class, PaymentPolicy::class);
+        Gate::policy(RepaymentSchedule::class, RepaymentSchedulePolicy::class);
+        Gate::policy(Penalty::class, PenaltyPolicy::class);
+
         Password::defaults(function () {
             $rule = Password::min(10)->letters()->mixedCase()->numbers()->symbols();
 

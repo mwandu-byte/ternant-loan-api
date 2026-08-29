@@ -27,7 +27,7 @@ class PenaltyService
      */
     public function list(array $filters): LengthAwarePaginator
     {
-        $query = Penalty::query()->with(['loan', 'repaymentSchedule', 'penaltyRule']);
+        $query = Penalty::query()->visibleTo(auth()->user())->with(['loan', 'repaymentSchedule', 'penaltyRule']);
 
         if (! empty($filters['loan_id'])) {
             $query->where('loan_id', $filters['loan_id']);

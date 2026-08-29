@@ -136,6 +136,8 @@ class CustomerController extends Controller
     ]])]
     public function show(Customer $customer): JsonResponse
     {
+        $this->authorize('view', $customer);
+
         return ApiResponse::success(new CustomerResource($customer), 'Customer retrieved successfully');
     }
 
@@ -166,6 +168,8 @@ class CustomerController extends Controller
     ]])]
     public function update(UpdateCustomerRequest $request, Customer $customer): JsonResponse
     {
+        $this->authorize('update', $customer);
+
         $customer = $this->customerService->update(
             $customer,
             $request->safe()->except('photo'),
@@ -205,6 +209,8 @@ class CustomerController extends Controller
     ]])]
     public function destroy(Customer $customer): JsonResponse
     {
+        $this->authorize('delete', $customer);
+
         $this->customerService->delete($customer);
 
         return ApiResponse::success(null, 'Customer deleted successfully');

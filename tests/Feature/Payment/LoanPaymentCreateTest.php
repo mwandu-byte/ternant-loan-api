@@ -27,6 +27,8 @@ class LoanPaymentCreateTest extends TestCase
      */
     private function actingUserToken(array $permissions): string
     {
+        $permissions[] = 'data.view-all';
+
         foreach ($permissions as $permission) {
             Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'api']);
         }
@@ -226,8 +228,9 @@ class LoanPaymentCreateTest extends TestCase
     {
         $loan = $this->activeLoan();
         Permission::firstOrCreate(['name' => 'payments.create', 'guard_name' => 'api']);
+        Permission::firstOrCreate(['name' => 'data.view-all', 'guard_name' => 'api']);
         $role = Role::create(['name' => 'test-role-'.uniqid(), 'guard_name' => 'api']);
-        $role->givePermissionTo(['payments.create']);
+        $role->givePermissionTo(['payments.create', 'data.view-all']);
         $user = User::factory()->create();
         $user->assignRole($role);
         $token = JWTAuth::fromUser($user);

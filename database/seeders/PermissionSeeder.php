@@ -58,6 +58,8 @@ class PermissionSeeder extends Seeder
 
             'dashboard.view',
 
+            'data.view-all',
+
             'configuration.view',
             'configuration.update',
 

@@ -36,7 +36,7 @@ class OutstandingLoansReportService
      */
     private function baseQuery(array $filters): Builder
     {
-        $query = Loan::query()->whereHas('repaymentSchedules', function (Builder $q) use ($filters) {
+        $query = Loan::query()->visibleTo(auth()->user())->whereHas('repaymentSchedules', function (Builder $q) use ($filters) {
             $q->where('outstanding_amount', '>', 0);
 
             if (! empty($filters['date_from'])) {

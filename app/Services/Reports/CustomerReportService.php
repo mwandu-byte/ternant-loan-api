@@ -41,7 +41,7 @@ class CustomerReportService
      */
     private function baseQuery(array $filters): Builder
     {
-        $query = Customer::query();
+        $query = Customer::query()->visibleTo(auth()->user());
 
         if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);

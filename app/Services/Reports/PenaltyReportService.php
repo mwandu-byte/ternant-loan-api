@@ -4,6 +4,7 @@ namespace App\Services\Reports;
 
 use App\Models\Penalty;
 use App\Services\Repayment\OverdueService;
+use App\Support\AccessScope;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -48,7 +49,7 @@ class PenaltyReportService
      */
     private function baseQuery(array $filters): Builder
     {
-        $query = Penalty::query();
+        $query = AccessScope::restrictViaLoan(Penalty::query(), auth()->user());
 
         if (! empty($filters['loan_id'])) {
             $query->where('loan_id', $filters['loan_id']);

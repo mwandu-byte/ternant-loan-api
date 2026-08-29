@@ -71,6 +71,8 @@ class CollateralController extends Controller
     ]])]
     public function index(Customer $customer, Request $request): JsonResponse
     {
+        $this->authorize('viewScope', $customer);
+
         $paginator = $this->collateralService->list($customer, $request->only([
             'search', 'status', 'per_page', 'page',
         ]));
@@ -111,6 +113,8 @@ class CollateralController extends Controller
     ]])]
     public function store(Customer $customer, StoreCollateralRequest $request): JsonResponse
     {
+        $this->authorize('viewScope', $customer);
+
         $collateral = $this->collateralService->create($customer, $request->validated());
 
         return ApiResponse::success(
@@ -140,6 +144,8 @@ class CollateralController extends Controller
     ]])]
     public function show(Customer $customer, int $collateral): JsonResponse
     {
+        $this->authorize('viewScope', $customer);
+
         $collateral = $this->collateralService->findForCustomer($customer, $collateral);
 
         return ApiResponse::success(new CollateralResource($collateral), 'Collateral retrieved successfully');
@@ -171,6 +177,8 @@ class CollateralController extends Controller
     ]])]
     public function update(Customer $customer, UpdateCollateralRequest $request, int $collateral): JsonResponse
     {
+        $this->authorize('viewScope', $customer);
+
         $model = $this->collateralService->findForCustomer($customer, $collateral);
         $model = $this->collateralService->update($model, $request->validated());
 
@@ -202,6 +210,8 @@ class CollateralController extends Controller
     ]])]
     public function destroy(Customer $customer, int $collateral): JsonResponse
     {
+        $this->authorize('viewScope', $customer);
+
         $model = $this->collateralService->findForCustomer($customer, $collateral);
         $this->collateralService->delete($model);
 

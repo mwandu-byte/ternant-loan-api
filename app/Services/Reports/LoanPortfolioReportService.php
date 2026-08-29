@@ -44,7 +44,7 @@ class LoanPortfolioReportService
      */
     private function baseQuery(array $filters): Builder
     {
-        $query = Loan::query();
+        $query = Loan::query()->visibleTo(auth()->user());
 
         if (! empty($filters['customer_id'])) {
             $query->where('customer_id', $filters['customer_id']);

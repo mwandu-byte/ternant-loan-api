@@ -20,7 +20,7 @@ class CustomerService
      */
     public function list(array $filters): LengthAwarePaginator
     {
-        $query = Customer::query();
+        $query = Customer::query()->visibleTo(auth()->user());
 
         if (! empty($filters['search'])) {
             $search = $filters['search'];
@@ -54,6 +54,11 @@ class CustomerService
      */
     public function create(array $data, ?UploadedFile $photo = null): Customer
     {
+        // created_by must never be client-supplied — it is always the
+        // authenticated agent, regardless of what the request contained.
+        unset($data['created_by']);
+        $data['created_by'] = auth()->id();
+
         $data['phone'] = PhoneNumber::normalize($data['phone'], config('customer.default_country_code'));
 
         $this->assertPhoneIsUnique($data['phone']);
@@ -70,6 +75,9 @@ class CustomerService
      */
     public function update(Customer $customer, array $data, ?UploadedFile $photo = null): Customer
     {
+        // Ownership is never reassignable via update.
+        unset($data['created_by']);
+
         if (array_key_exists('phone', $data)) {
             $data['phone'] = PhoneNumber::normalize($data['phone'], config('customer.default_country_code'));
             $this->assertPhoneIsUnique($data['phone'], $customer->id);

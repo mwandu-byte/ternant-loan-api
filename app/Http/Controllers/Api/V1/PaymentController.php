@@ -144,6 +144,7 @@ class PaymentController extends Controller
     public function store(int $loan, StoreLoanPaymentRequest $request): JsonResponse
     {
         $loanModel = $this->loanService->find($loan);
+        $this->authorize('viewScope', $loanModel);
         $payment = $this->paymentService->disburse($loanModel, $request->validated());
 
         return ApiResponse::success(
@@ -174,6 +175,7 @@ class PaymentController extends Controller
     public function show(int $payment): JsonResponse
     {
         $model = $this->paymentService->find($payment);
+        $this->authorize('view', $model);
 
         return ApiResponse::success(new PaymentResource($model), 'Payment retrieved successfully');
     }

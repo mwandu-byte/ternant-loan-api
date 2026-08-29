@@ -40,7 +40,7 @@ class LoanService
      */
     public function list(array $filters): LengthAwarePaginator
     {
-        $query = Loan::query()->with(['customer', 'collaterals', 'repaymentSchedules']);
+        $query = Loan::query()->visibleTo(auth()->user())->with(['customer', 'collaterals', 'repaymentSchedules']);
 
         if (! empty($filters['customer_id'])) {
             $query->where('customer_id', $filters['customer_id']);
@@ -113,6 +113,7 @@ class LoanService
                     $appliedRate, $interestAmount, $totalAmount, $dueDate, $collateralIds
                 ) {
                     $loan = $customer->loans()->create([
+                        'created_by' => auth()->id(),
                         'reference_no' => $this->generateReferenceNo(),
                         'principal_amount' => $principal,
                         'interest_rate' => $configuredRate,

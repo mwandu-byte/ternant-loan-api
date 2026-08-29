@@ -35,6 +35,7 @@ class RoleSeeder extends Seeder
             'penalties.view', 'penalties.create', 'penalties.update',
             'dashboard.view',
             'reports.view',
+            'data.view-all',
             'configuration.view', 'configuration.update',
             'loan-configurations.view', 'loan-configurations.create', 'loan-configurations.update', 'loan-configurations.delete',
         ];

@@ -9,14 +9,22 @@ use App\Models\Penalty;
 use App\Models\Repayment;
 use App\Models\RepaymentSchedule;
 use App\Services\Repayment\OverdueService;
+use App\Support\AccessScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Aggregates the high-level lending-business summary shown on the
  * dashboard, entirely via count()/sum()/groupBy() queries — no
  * collection is ever loaded into PHP just to total it up.
+ *
+ * Every query is additionally scoped to the authenticated user's data
+ * ownership (see App\Support\AccessScope): a user with `data.view-all`
+ * (manager/admin) sees organization-wide totals; anyone else (staff)
+ * sees only customers/loans they own and the repayments/payments/
+ * penalties/schedules reachable through a loan they own.
  *
  * `from`/`to` scope only EVENT-DATED metrics (loans created, amounts
  * issued/collected/interest/penalties, total repayments) through each
@@ -49,7 +57,7 @@ class DashboardService
     {
         $today = Carbon::today();
 
-        $loanStatusCounts = $this->dateScoped(Loan::query(), 'created_at', $from, $to)
+        $loanStatusCounts = $this->dateScoped($this->ownedLoans(Loan::query()), 'created_at', $from, $to)
             ->select('status', DB::raw('count(*) as aggregate_count'))
             ->groupBy('status')
             ->pluck('aggregate_count', 'status');
@@ -57,19 +65,21 @@ class DashboardService
         $activeLoans = (int) ($loanStatusCounts['active'] ?? 0);
         $completedLoans = (int) ($loanStatusCounts['completed'] ?? 0);
 
-        $overdueLoans = Loan::whereHas(
+        $overdueLoans = $this->ownedLoans(Loan::query())->whereHas(
             'repaymentSchedules',
             fn (Builder $query) => $this->overdueService->applyOverdueScope($query),
         )->count();
 
-        $totalOutstandingAmount = $this->formatAmount(RepaymentSchedule::where('status', '!=', 'paid')->sum('outstanding_amount'));
+        $totalOutstandingAmount = $this->formatAmount(
+            $this->viaOwnedLoan(RepaymentSchedule::where('status', '!=', 'paid'))->sum('outstanding_amount'),
+        );
 
         [$periodFrom, $periodTo] = $this->effectiveRange($from, $to);
 
         return [
             'customers' => [
-                'total' => Customer::count(),
-                'active' => Customer::where('status', 'active')->count(),
+                'total' => $this->ownedCustomers(Customer::query())->count(),
+                'active' => $this->ownedCustomers(Customer::where('status', 'active'))->count(),
             ],
             'loans' => [
                 'total' => (int) $loanStatusCounts->sum(),
@@ -79,26 +89,26 @@ class DashboardService
                 'overdue' => $overdueLoans,
             ],
             'financial' => [
-                'total_amount_issued' => $this->formatAmount($this->dateScoped(Payment::query(), 'payment_date', $from, $to)->sum('amount')),
-                'total_amount_collected' => $this->formatAmount($this->dateScoped(Repayment::query(), 'repayment_date', $from, $to)->sum('amount')),
+                'total_amount_issued' => $this->formatAmount($this->dateScoped($this->viaOwnedLoan(Payment::query()), 'payment_date', $from, $to)->sum('amount')),
+                'total_amount_collected' => $this->formatAmount($this->dateScoped($this->viaOwnedLoan(Repayment::query()), 'repayment_date', $from, $to)->sum('amount')),
                 'total_outstanding_amount' => $totalOutstandingAmount,
                 'total_interest_generated' => $this->formatAmount($this->dateScoped(
-                    Loan::query()->whereIn('status', ['active', 'completed']),
+                    $this->ownedLoans(Loan::query()->whereIn('status', ['active', 'completed'])),
                     'start_date',
                     $from,
                     $to,
                 )->sum('interest_amount')),
-                'total_penalties_generated' => $this->formatAmount($this->dateScoped(Penalty::query(), 'applied_date', $from, $to)->sum('amount')),
+                'total_penalties_generated' => $this->formatAmount($this->dateScoped($this->viaOwnedLoan(Penalty::query()), 'applied_date', $from, $to)->sum('amount')),
             ],
             'repayments' => [
-                'total' => $this->dateScoped(Repayment::query(), 'repayment_date', $from, $to)->count(),
-                'today' => Repayment::whereDate('repayment_date', $today)->count(),
-                'overdue' => $this->overdueService->applyOverdueScope(RepaymentSchedule::query())->count(),
-                'upcoming' => RepaymentSchedule::where('status', '!=', 'paid')->where('due_date', '>', $today)->count(),
+                'total' => $this->dateScoped($this->viaOwnedLoan(Repayment::query()), 'repayment_date', $from, $to)->count(),
+                'today' => $this->viaOwnedLoan(Repayment::whereDate('repayment_date', $today))->count(),
+                'overdue' => $this->viaOwnedLoan($this->overdueService->applyOverdueScope(RepaymentSchedule::query()))->count(),
+                'upcoming' => $this->viaOwnedLoan(RepaymentSchedule::where('status', '!=', 'paid')->where('due_date', '>', $today))->count(),
             ],
             'payments' => [
-                'total_disbursements' => $this->dateScoped(Payment::query(), 'payment_date', $from, $to)->count(),
-                'today_disbursements' => Payment::whereDate('payment_date', $today)->count(),
+                'total_disbursements' => $this->dateScoped($this->viaOwnedLoan(Payment::query()), 'payment_date', $from, $to)->count(),
+                'today_disbursements' => $this->viaOwnedLoan(Payment::whereDate('payment_date', $today))->count(),
             ],
             'period' => [
                 'date_from' => $periodFrom->toDateString(),
@@ -138,24 +148,29 @@ class DashboardService
         int $overdueLoans,
         string $totalOutstandingAmount,
     ): array {
-        $totalLoans = Loan::whereDate('start_date', '>=', $periodFrom)
+        $totalLoans = $this->ownedLoans(Loan::query())
+            ->whereDate('start_date', '>=', $periodFrom)
             ->whereDate('start_date', '<=', $periodTo)
             ->count();
 
-        $totalDisbursed = Payment::whereDate('payment_date', '>=', $periodFrom)
+        $totalDisbursed = $this->viaOwnedLoan(Payment::query())
+            ->whereDate('payment_date', '>=', $periodFrom)
             ->whereDate('payment_date', '<=', $periodTo)
             ->sum('amount');
 
-        $totalCollected = Repayment::whereDate('repayment_date', '>=', $periodFrom)
+        $totalCollected = $this->viaOwnedLoan(Repayment::query())
+            ->whereDate('repayment_date', '>=', $periodFrom)
             ->whereDate('repayment_date', '<=', $periodTo)
             ->sum('amount');
 
-        $totalInterest = Loan::whereIn('status', ['active', 'completed'])
+        $totalInterest = $this->ownedLoans(Loan::query())
+            ->whereIn('status', ['active', 'completed'])
             ->whereDate('start_date', '>=', $periodFrom)
             ->whereDate('start_date', '<=', $periodTo)
             ->sum('interest_amount');
 
-        $totalPenalties = Penalty::whereDate('applied_date', '>=', $periodFrom)
+        $totalPenalties = $this->viaOwnedLoan(Penalty::query())
+            ->whereDate('applied_date', '>=', $periodFrom)
             ->whereDate('applied_date', '<=', $periodTo)
             ->sum('amount');
 
@@ -177,7 +192,7 @@ class DashboardService
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<string, int>  $loanStatusCounts
+     * @param  Collection<string, int>  $loanStatusCounts
      * @return array<string, mixed>
      */
     private function charts(Carbon $periodFrom, Carbon $periodTo, $loanStatusCounts): array
@@ -186,11 +201,15 @@ class DashboardService
 
         $loanBuckets = collect($buckets)->map(fn (array $bucket) => [
             'period' => $bucket['label'],
-            'loans' => Loan::whereDate('start_date', '>=', $bucket['start'])->whereDate('start_date', '<=', $bucket['end'])->count(),
+            'loans' => $this->ownedLoans(Loan::query())
+                ->whereDate('start_date', '>=', $bucket['start'])
+                ->whereDate('start_date', '<=', $bucket['end'])
+                ->count(),
         ]);
 
         $disbursementBuckets = collect($buckets)->map(function (array $bucket) {
-            $agg = Payment::whereDate('payment_date', '>=', $bucket['start'])
+            $agg = $this->viaOwnedLoan(Payment::query())
+                ->whereDate('payment_date', '>=', $bucket['start'])
                 ->whereDate('payment_date', '<=', $bucket['end'])
                 ->selectRaw('COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total')
                 ->first();
@@ -203,7 +222,8 @@ class DashboardService
         });
 
         $collectionBuckets = collect($buckets)->map(function (array $bucket) {
-            $agg = Repayment::whereDate('repayment_date', '>=', $bucket['start'])
+            $agg = $this->viaOwnedLoan(Repayment::query())
+                ->whereDate('repayment_date', '>=', $bucket['start'])
                 ->whereDate('repayment_date', '<=', $bucket['end'])
                 ->selectRaw('COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total')
                 ->first();
@@ -216,7 +236,8 @@ class DashboardService
         });
 
         $penaltyBuckets = collect($buckets)->map(function (array $bucket) {
-            $agg = Penalty::whereDate('applied_date', '>=', $bucket['start'])
+            $agg = $this->viaOwnedLoan(Penalty::query())
+                ->whereDate('applied_date', '>=', $bucket['start'])
                 ->whereDate('applied_date', '<=', $bucket['end'])
                 ->selectRaw('COALESCE(SUM(amount), 0) as total')
                 ->first();
@@ -233,7 +254,7 @@ class DashboardService
             'disbursed' => $disbursementBuckets[$index]['amount'],
         ])->values()->all();
 
-        $paidVsOutstanding = RepaymentSchedule::query()
+        $paidVsOutstanding = $this->viaOwnedLoan(RepaymentSchedule::query())
             ->selectRaw('COALESCE(SUM(total_amount - outstanding_amount), 0) as paid, COALESCE(SUM(outstanding_amount), 0) as outstanding')
             ->first();
 
@@ -299,6 +320,7 @@ class DashboardService
 
     /**
      * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
      * @param  Builder<TModel>  $query
      * @return Builder<TModel>
      */
@@ -313,5 +335,34 @@ class DashboardService
         }
 
         return $query;
+    }
+
+    /**
+     * @param  Builder<Loan>  $query
+     * @return Builder<Loan>
+     */
+    private function ownedLoans(Builder $query): Builder
+    {
+        return AccessScope::restrictToOwner($query, auth()->user());
+    }
+
+    /**
+     * @param  Builder<Customer>  $query
+     * @return Builder<Customer>
+     */
+    private function ownedCustomers(Builder $query): Builder
+    {
+        return AccessScope::restrictToOwner($query, auth()->user());
+    }
+
+    /**
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  Builder<TModel>  $query
+     * @return Builder<TModel>
+     */
+    private function viaOwnedLoan(Builder $query, string $relation = 'loan'): Builder
+    {
+        return AccessScope::restrictViaLoan($query, auth()->user(), $relation);
     }
 }

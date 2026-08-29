@@ -147,6 +147,7 @@ class RepaymentScheduleController extends Controller
     public function show(int $repayment): JsonResponse
     {
         $model = $this->repaymentScheduleService->find($repayment);
+        $this->authorize('view', $model);
 
         return ApiResponse::success(new RepaymentScheduleResource($model), 'Repayment schedule retrieved successfully');
     }
@@ -177,6 +178,7 @@ class RepaymentScheduleController extends Controller
     public function indexForLoan(int $loan, Request $request): JsonResponse
     {
         $loanModel = $this->loanService->find($loan);
+        $this->authorize('viewScope', $loanModel);
 
         $paginator = $this->repaymentScheduleService->listForLoan($loanModel, $request->only([
             'status', 'due_date_from', 'due_date_to', 'per_page', 'page',
@@ -231,6 +233,7 @@ class RepaymentScheduleController extends Controller
     public function generate(int $loan): JsonResponse
     {
         $loanModel = $this->loanService->find($loan);
+        $this->authorize('viewScope', $loanModel);
         $schedule = $this->repaymentScheduleService->generateForLoan($loanModel);
 
         return ApiResponse::success(

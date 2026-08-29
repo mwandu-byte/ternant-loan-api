@@ -26,7 +26,7 @@ class RepaymentService
      */
     public function list(array $filters): LengthAwarePaginator
     {
-        $query = Repayment::query()->with(['receipt', 'loan', 'repaymentSchedule']);
+        $query = Repayment::query()->visibleTo(auth()->user())->with(['receipt', 'loan', 'repaymentSchedule']);
 
         if (! empty($filters['loan_id'])) {
             $query->where('loan_id', $filters['loan_id']);

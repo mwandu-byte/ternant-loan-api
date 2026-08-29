@@ -200,6 +200,7 @@ class LoanController extends Controller
     public function show(int $loan): JsonResponse
     {
         $model = $this->loanService->find($loan);
+        $this->authorize('view', $model);
 
         return ApiResponse::success(new LoanResource($model), 'Loan retrieved successfully');
     }
@@ -249,6 +250,7 @@ class LoanController extends Controller
     public function update(UpdateLoanRequest $request, int $loan): JsonResponse
     {
         $model = $this->loanService->find($loan);
+        $this->authorize('update', $model);
         $wasActive = $model->status === 'active';
 
         $model = $this->loanService->update($model, $request->validated());
@@ -294,6 +296,7 @@ class LoanController extends Controller
     public function destroy(int $loan): JsonResponse
     {
         $model = $this->loanService->find($loan);
+        $this->authorize('delete', $model);
         $message = $this->loanService->delete($model);
 
         return ApiResponse::success(null, $message);

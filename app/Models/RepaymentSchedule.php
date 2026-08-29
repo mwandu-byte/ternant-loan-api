@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Support\AccessScope;
 use Database\Factories\RepaymentScheduleFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -37,6 +39,15 @@ class RepaymentSchedule extends Model
             'total_amount' => 'decimal:2',
             'outstanding_amount' => 'decimal:2',
         ];
+    }
+
+    /**
+     * @param  Builder<RepaymentSchedule>  $query
+     * @return Builder<RepaymentSchedule>
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        return AccessScope::restrictViaLoan($query, $user);
     }
 
     public function loan(): BelongsTo

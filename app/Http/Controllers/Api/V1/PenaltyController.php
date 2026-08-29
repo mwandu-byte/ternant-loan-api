@@ -114,6 +114,7 @@ class PenaltyController extends Controller
     public function show(int $penalty): JsonResponse
     {
         $model = $this->penaltyService->find($penalty);
+        $this->authorize('view', $model);
 
         return ApiResponse::success(new PenaltyResource($model), 'Penalty retrieved successfully');
     }
