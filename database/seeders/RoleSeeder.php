@@ -33,6 +33,8 @@ class RoleSeeder extends Seeder
             'repayments.view', 'repayments.create', 'repayments.update',
             'payments.view', 'payments.create', 'payments.update',
             'penalties.view', 'penalties.create', 'penalties.update',
+            'application-fees.view', 'application-fees.create',
+            'guarantors.view', 'guarantors.create', 'guarantors.update', 'guarantors.delete',
             'dashboard.view',
             'reports.view',
             'data.view-all',
@@ -53,6 +55,8 @@ class RoleSeeder extends Seeder
             'repayment-schedules.view', 'repayment-schedules.create',
             'repayments.view', 'repayments.create',
             'payments.view', 'payments.create',
+            'application-fees.view', 'application-fees.create',
+            'guarantors.view', 'guarantors.create',
             'dashboard.view',
         ];
     }

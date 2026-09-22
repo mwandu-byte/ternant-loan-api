@@ -3,7 +3,7 @@ name: NAALI PUB CI/CD
 on:
   push:
     branches:
-      - dev
+      - main
 
   workflow_dispatch:
 
@@ -121,7 +121,7 @@ jobs:
 
           SERVER="${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}"
           PORT="${{ secrets.VPS_PORT }}"
-          DEPLOY_PATH="/var/www/Projects/ternant-loan-api"
+          DEPLOY_PATH="/var/www/Projects/prod/ternant-loan-api"
 
           echo "========================================="
           echo "Deploying NAALI PUB"
@@ -156,7 +156,7 @@ jobs:
 
             set -e
 
-            cd /var/www/Projects/ternant-loan-api
+            cd /var/www/Projects/prod/ternant-loan-api
 
             echo "========================================="
             echo "Starting NAALI PUB deployment"

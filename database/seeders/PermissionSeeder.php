@@ -54,6 +54,18 @@ class PermissionSeeder extends Seeder
             'penalties.create',
             'penalties.update',
 
+            'businesses.view',
+            'businesses.create',
+            'businesses.update',
+
+            'application-fees.view',
+            'application-fees.create',
+
+            'guarantors.view',
+            'guarantors.create',
+            'guarantors.update',
+            'guarantors.delete',
+
             'reports.view',
 
             'dashboard.view',

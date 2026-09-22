@@ -61,7 +61,11 @@ class CustomerService
 
         $data['phone'] = PhoneNumber::normalize($data['phone'], config('customer.default_country_code'));
 
-        $this->assertPhoneIsUnique($data['phone']);
+        // Tenant users are always pinned to their own business (see
+        // BelongsToBusiness); only platform users may choose one.
+        $data['business_id'] = auth()->user()->business_id ?? ($data['business_id'] ?? null);
+
+        $this->assertPhoneIsUnique($data['phone'], $data['business_id']);
 
         if ($photo !== null) {
             $data['photo'] = $this->storePhoto($photo);
@@ -75,12 +79,12 @@ class CustomerService
      */
     public function update(Customer $customer, array $data, ?UploadedFile $photo = null): Customer
     {
-        // Ownership is never reassignable via update.
-        unset($data['created_by']);
+        // Ownership and tenancy are never reassignable via update.
+        unset($data['created_by'], $data['business_id']);
 
         if (array_key_exists('phone', $data)) {
             $data['phone'] = PhoneNumber::normalize($data['phone'], config('customer.default_country_code'));
-            $this->assertPhoneIsUnique($data['phone'], $customer->id);
+            $this->assertPhoneIsUnique($data['phone'], $customer->business_id, $customer->id);
         }
 
         if ($photo !== null) {
@@ -112,9 +116,9 @@ class CustomerService
         }
     }
 
-    private function assertPhoneIsUnique(string $normalizedPhone, ?int $ignoreId = null): void
+    private function assertPhoneIsUnique(string $normalizedPhone, ?int $businessId, ?int $ignoreId = null): void
     {
-        $query = Customer::where('phone', $normalizedPhone);
+        $query = Customer::where('phone', $normalizedPhone)->where('business_id', $businessId);
 
         if ($ignoreId !== null) {
             $query->where('id', '!=', $ignoreId);

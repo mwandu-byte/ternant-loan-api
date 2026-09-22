@@ -22,11 +22,17 @@ class AuthService
         ]);
 
         if (! $accessToken) {
-            throw new InvalidCredentialsException();
+            throw new InvalidCredentialsException;
         }
 
         /** @var User $user */
         $user = Auth::guard('api')->user();
+
+        if (! $this->businessIsActive($user)) {
+            Auth::guard('api')->logout();
+
+            throw new InvalidCredentialsException;
+        }
 
         return $this->issueTokens($user, $accessToken);
     }
@@ -43,10 +49,14 @@ class AuthService
         if (! $refreshToken) {
             $this->handlePossibleReuse($hash);
 
-            throw new InvalidRefreshTokenException();
+            throw new InvalidRefreshTokenException;
         }
 
         $refreshToken->update(['revoked_at' => now()]);
+
+        if (! $this->businessIsActive($refreshToken->user)) {
+            throw new InvalidRefreshTokenException;
+        }
 
         return $this->issueTokens($refreshToken->user);
     }
@@ -58,6 +68,15 @@ class AuthService
             ->update(['revoked_at' => now()]);
 
         Auth::guard('api')->logout();
+    }
+
+    /**
+     * Users of a suspended business can neither log in nor refresh.
+     * Platform users (no business) are never affected.
+     */
+    private function businessIsActive(User $user): bool
+    {
+        return $user->business === null || $user->business->isActive();
     }
 
     /**

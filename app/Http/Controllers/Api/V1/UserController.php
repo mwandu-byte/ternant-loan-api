@@ -155,6 +155,8 @@ class UserController extends Controller
     ]])]
     public function show(User $user): JsonResponse
     {
+        $this->authorize('access', $user);
+
         return ApiResponse::success(new UserResource($user->load('roles')), 'User retrieved successfully');
     }
 
@@ -186,6 +188,8 @@ class UserController extends Controller
     ]])]
     public function update(UpdateUserRequest $request, User $user): JsonResponse
     {
+        $this->authorize('access', $user);
+
         $user = $this->userService->update($user, $request->validated());
 
         return ApiResponse::success(new UserResource($user), 'User updated successfully');
@@ -227,6 +231,8 @@ class UserController extends Controller
     ]])]
     public function destroy(Request $request, User $user): JsonResponse
     {
+        $this->authorize('access', $user);
+
         $this->userService->delete($user, $request->user());
 
         return ApiResponse::success(null, 'User deleted successfully');
@@ -264,6 +270,8 @@ class UserController extends Controller
     ]])]
     public function syncRoles(SyncUserRolesRequest $request, User $user): JsonResponse
     {
+        $this->authorize('access', $user);
+
         if ($user->is($request->user())) {
             throw new SelfRoleModificationException;
         }
@@ -300,6 +308,8 @@ class UserController extends Controller
     ]])]
     public function addRole(AddUserRoleRequest $request, User $user): JsonResponse
     {
+        $this->authorize('access', $user);
+
         if ($user->is($request->user())) {
             throw new SelfRoleModificationException;
         }
@@ -335,6 +345,8 @@ class UserController extends Controller
     ]])]
     public function removeRole(Request $request, User $user, Role $role): JsonResponse
     {
+        $this->authorize('access', $user);
+
         if ($user->is($request->user())) {
             throw new SelfRoleModificationException;
         }
@@ -366,6 +378,8 @@ class UserController extends Controller
     ]])]
     public function permissions(User $user): JsonResponse
     {
+        $this->authorize('access', $user);
+
         return ApiResponse::success([
             'permissions' => $this->userService->effectivePermissions($user),
         ], 'Permissions retrieved successfully');

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToBusiness;
 use App\Support\AccessScope;
 use Database\Factories\LoanFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -11,8 +12,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
+    'business_id',
     'customer_id',
     'created_by',
     'reference_no',
@@ -33,7 +36,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Loan extends Model
 {
     /** @use HasFactory<LoanFactory> */
-    use HasFactory;
+    use BelongsToBusiness, HasFactory;
 
     /**
      * @return array<string, string>
@@ -66,6 +69,16 @@ class Loan extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function guarantors(): HasMany
+    {
+        return $this->hasMany(Guarantor::class);
+    }
+
+    public function applicationFee(): HasOne
+    {
+        return $this->hasOne(ApplicationFee::class);
     }
 
     public function collaterals(): BelongsToMany

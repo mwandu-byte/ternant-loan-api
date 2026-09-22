@@ -2,8 +2,11 @@
 
 namespace App\Support;
 
+use App\Models\Business;
+use App\Models\Concerns\BelongsToBusiness;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Single source of truth for agent data-ownership scoping. A user who
@@ -12,6 +15,12 @@ use Illuminate\Database\Eloquent\Builder;
  * own or acted on. This is a Spatie permission check, never a role-name
  * check, so it stays a scope concern layered on top of — not a
  * replacement for — the existing permission system.
+ *
+ * On top of ownership sits tenant isolation: every user belongs to at
+ * most one Business. A user with no business is a platform user and may
+ * cross tenants; every other user is confined to their own business,
+ * even when they hold `data.view-all` (which then means "all within my
+ * business"). Tenant isolation is always applied before ownership.
  */
 final class AccessScope
 {
@@ -20,6 +29,72 @@ final class AccessScope
     public static function isUnrestricted(User $user): bool
     {
         return $user->can(self::PERMISSION);
+    }
+
+    public static function isPlatformUser(User $user): bool
+    {
+        return $user->business_id === null;
+    }
+
+    /**
+     * Query-level tenant isolation: platform users are unrestricted, all
+     * other users only see rows of their own business. A tenant user's
+     * business_id is never NULL here, so unassigned rows stay hidden.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  Builder<TModel>  $query
+     * @return Builder<TModel>
+     */
+    public static function restrictToBusiness(Builder $query, User $user, string $column = 'business_id'): Builder
+    {
+        return self::isPlatformUser($user) ? $query : $query->where($column, $user->business_id);
+    }
+
+    /**
+     * Tenant isolation for models that have no business column of their
+     * own and are reached through a loan relation.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  Builder<TModel>  $query
+     * @return Builder<TModel>
+     */
+    public static function restrictToBusinessViaLoan(Builder $query, User $user, string $loanRelation = 'loan'): Builder
+    {
+        return self::isPlatformUser($user)
+            ? $query
+            : $query->whereHas($loanRelation, fn (Builder $q) => $q->where('business_id', $user->business_id));
+    }
+
+    /**
+     * Single-row (Policy / Gate) tenant check.
+     */
+    public static function canAccessBusiness(User $user, ?int $businessId): bool
+    {
+        return self::isPlatformUser($user) || ($businessId !== null && $businessId === $user->business_id);
+    }
+
+    /**
+     * The business a model belongs to: its own business_id, or its loan's
+     * for loan-child models (Payment, Repayment, RepaymentSchedule, Penalty).
+     * Returns false when the model is not tenant-aware at all.
+     */
+    public static function businessIdOf(Model $model): int|false|null
+    {
+        if ($model instanceof Business) {
+            return $model->id;
+        }
+
+        if ($model instanceof User || in_array(BelongsToBusiness::class, class_uses_recursive($model), true)) {
+            return $model->business_id;
+        }
+
+        if (method_exists($model, 'loan')) {
+            return $model->loan?->business_id;
+        }
+
+        return false;
     }
 
     /**
@@ -36,6 +111,8 @@ final class AccessScope
      */
     public static function restrictToOwner(Builder $query, User $user, string $column = 'created_by'): Builder
     {
+        $query = self::restrictToBusiness($query, $user);
+
         return self::isUnrestricted($user) ? $query : $query->where($column, $user->id);
     }
 
@@ -50,6 +127,8 @@ final class AccessScope
      */
     public static function restrictViaLoan(Builder $query, User $user, string $loanRelation = 'loan'): Builder
     {
+        $query = self::restrictToBusinessViaLoan($query, $user, $loanRelation);
+
         return self::isUnrestricted($user)
             ? $query
             : $query->whereHas($loanRelation, fn (Builder $q) => $q->where('created_by', $user->id));
@@ -70,6 +149,8 @@ final class AccessScope
         string $actorColumn,
         string $loanRelation = 'loan',
     ): Builder {
+        $query = self::restrictToBusinessViaLoan($query, $user, $loanRelation);
+
         if (self::isUnrestricted($user)) {
             return $query;
         }

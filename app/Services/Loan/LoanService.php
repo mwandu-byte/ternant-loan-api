@@ -7,11 +7,14 @@ use App\Exceptions\Loan\LoanNotFoundException;
 use App\Models\Customer;
 use App\Models\Loan;
 use App\Models\RepaymentFrequency;
+use App\Services\ApplicationFee\ApplicationFeeService;
+use App\Services\Guarantor\GuarantorService;
 use App\Services\LoanConfiguration\InterestRuleService;
 use App\Services\LoanConfiguration\LoanAmountConfigurationService;
 use App\Services\LoanConfiguration\RepaymentFrequencyService;
 use App\Services\Payment\PaymentService;
 use App\Services\Repayment\RepaymentScheduleService;
+use App\Support\AccessScope;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
@@ -31,6 +34,8 @@ class LoanService
         private readonly RepaymentFrequencyService $repaymentFrequencyService,
         private readonly RepaymentScheduleService $repaymentScheduleService,
         private readonly PaymentService $paymentService,
+        private readonly GuarantorService $guarantorService,
+        private readonly ApplicationFeeService $applicationFeeService,
     ) {
         //
     }
@@ -64,7 +69,7 @@ class LoanService
 
     public function find(int $id): Loan
     {
-        $loan = Loan::with(['customer', 'collaterals', 'repaymentSchedules'])->find($id);
+        $loan = Loan::with(['customer', 'collaterals', 'repaymentSchedules', 'guarantors.customer', 'applicationFee'])->find($id);
 
         if ($loan === null) {
             throw new LoanNotFoundException;
@@ -78,7 +83,15 @@ class LoanService
      */
     public function create(array $data): Loan
     {
-        $customer = Customer::findOrFail($data['customer_id']);
+        $customerQuery = Customer::query()->with('business');
+
+        // Direct service calls with no authenticated user (console, jobs)
+        // are not tenant-restricted; every HTTP path always has a user.
+        if (auth()->user() !== null) {
+            AccessScope::restrictToBusiness($customerQuery, auth()->user());
+        }
+
+        $customer = $customerQuery->findOrFail($data['customer_id']);
         $principal = (float) $data['principal_amount'];
 
         $this->loanAmountConfigurationService->assertWithinRange($principal);
@@ -104,15 +117,19 @@ class LoanService
         $collateralIds = $data['collateral_ids'] ?? [];
         $this->assertCollateralsBelongToCustomer($customer, $collateralIds);
 
+        $guarantors = $data['guarantors'] ?? [];
+        $this->assertBusinessRequirementsMet($customer, $guarantors);
+
         $attempt = 0;
 
         while (true) {
             try {
                 return DB::transaction(function () use (
                     $customer, $data, $principal, $configuredRate, $hasDiscount, $discountRate,
-                    $appliedRate, $interestAmount, $totalAmount, $dueDate, $collateralIds
+                    $appliedRate, $interestAmount, $totalAmount, $dueDate, $collateralIds, $guarantors
                 ) {
                     $loan = $customer->loans()->create([
+                        'business_id' => $customer->business_id,
                         'created_by' => auth()->id(),
                         'reference_no' => $this->generateReferenceNo(),
                         'principal_amount' => $principal,
@@ -134,12 +151,20 @@ class LoanService
                         $loan->collaterals()->sync($collateralIds);
                     }
 
+                    if ($guarantors !== []) {
+                        $this->guarantorService->createMany($loan, $guarantors);
+                    }
+
+                    if ($customer->business?->requires_application_fee) {
+                        $this->applicationFeeService->attachToLoan($customer, $loan);
+                    }
+
                     if ($loan->status === 'active') {
                         $this->repaymentScheduleService->generateForLoan($loan);
                         $this->disburseForActivation($loan, $data);
                     }
 
-                    return $loan->load(['customer', 'collaterals', 'repaymentSchedules']);
+                    return $loan->load(['customer', 'collaterals', 'repaymentSchedules', 'guarantors.customer', 'applicationFee']);
                 });
             } catch (QueryException $e) {
                 $attempt++;
@@ -157,6 +182,33 @@ class LoanService
                 // silent duplicate.
             }
         }
+    }
+
+    /**
+     * Enforces the borrower's business rules before anything is written:
+     * requires_guarantor needs at least one guarantor in the request, and
+     * requires_application_fee needs a paid, not-yet-used fee on file.
+     *
+     * @param  array<int, array<string, mixed>>  $guarantors
+     */
+    private function assertBusinessRequirementsMet(Customer $customer, array $guarantors): void
+    {
+        $business = $customer->business;
+        $errors = [];
+
+        if ($business?->requires_guarantor && $guarantors === []) {
+            $errors['guarantors'] = ['At least one guarantor is required for this business.'];
+        }
+
+        if ($business?->requires_application_fee && ! $this->applicationFeeService->hasAvailableFee($customer)) {
+            $errors['application_fee'] = ['A paid application fee is required before this loan can be created.'];
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        $this->guarantorService->assertValid($customer, $guarantors);
     }
 
     /**

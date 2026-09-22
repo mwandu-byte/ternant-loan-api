@@ -2,23 +2,33 @@
 
 namespace App\Providers;
 
+use App\Models\ApplicationFee;
+use App\Models\Business;
 use App\Models\Customer;
+use App\Models\Guarantor;
 use App\Models\Loan;
 use App\Models\Payment;
 use App\Models\Penalty;
 use App\Models\Repayment;
 use App\Models\RepaymentSchedule;
+use App\Models\User;
+use App\Policies\ApplicationFeePolicy;
+use App\Policies\BusinessPolicy;
 use App\Policies\CustomerPolicy;
+use App\Policies\GuarantorPolicy;
 use App\Policies\LoanPolicy;
 use App\Policies\PaymentPolicy;
 use App\Policies\PenaltyPolicy;
 use App\Policies\RepaymentPolicy;
 use App\Policies\RepaymentSchedulePolicy;
+use App\Policies\UserPolicy;
 use App\Services\Repayment\OverdueService;
+use App\Support\AccessScope;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\SecurityDocumentation\MiddlewareAuthSecurityStrategy;
 use Dedoc\Scramble\Support\Generator\SecurityScheme;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -53,6 +63,31 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Payment::class, PaymentPolicy::class);
         Gate::policy(RepaymentSchedule::class, RepaymentSchedulePolicy::class);
         Gate::policy(Penalty::class, PenaltyPolicy::class);
+        Gate::policy(Guarantor::class, GuarantorPolicy::class);
+        Gate::policy(ApplicationFee::class, ApplicationFeePolicy::class);
+        Gate::policy(Business::class, BusinessPolicy::class);
+        Gate::policy(User::class, UserPolicy::class);
+
+        // Tenant isolation, enforced centrally ahead of every policy: a
+        // non-platform user is denied any ability on a tenant-owned model
+        // that belongs to another business (or to no business), whatever
+        // the individual policy would have said. Returning null defers to
+        // the policy for everything else.
+        Gate::before(function ($user, string $ability, array $arguments) {
+            $model = $arguments[0] ?? null;
+
+            if (! $user instanceof User || ! $model instanceof Model) {
+                return null;
+            }
+
+            $businessId = AccessScope::businessIdOf($model);
+
+            if ($businessId === false) {
+                return null;
+            }
+
+            return AccessScope::canAccessBusiness($user, $businessId) ? null : false;
+        });
 
         Password::defaults(function () {
             $rule = Password::min(10)->letters()->mixedCase()->numbers()->symbols();

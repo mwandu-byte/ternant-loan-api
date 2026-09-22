@@ -5,6 +5,7 @@ namespace App\Services\User;
 use App\Exceptions\User\SelfDeletionNotAllowedException;
 use App\Exceptions\User\UserHasRelatedRecordsException;
 use App\Models\User;
+use App\Support\AccessScope;
 use App\Support\AdministrativeCoverageGuard;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
@@ -19,7 +20,7 @@ class UserService
      */
     public function list(array $filters): LengthAwarePaginator
     {
-        $query = User::query()->with('roles');
+        $query = AccessScope::restrictToBusiness(User::query(), auth()->user())->with('roles');
 
         if (! empty($filters['search'])) {
             $search = $filters['search'];
@@ -55,6 +56,9 @@ class UserService
             'email' => $data['email'],
             'password' => $data['password'],
             'is_enabled' => ($data['status'] ?? 'active') === 'active',
+            // Business users can only create users in their own business;
+            // platform users may pick one (or none, for another platform user).
+            'business_id' => auth()->user()->business_id ?? ($data['business_id'] ?? null),
         ];
 
         try {
