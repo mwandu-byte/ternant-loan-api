@@ -28,6 +28,7 @@ class UpdateCustomerRequest extends FormRequest
                 'string',
                 'max:100',
                 Rule::unique('customers')
+                    ->where('business_id', $this->businessId())
                     ->where(
                         fn ($query) => $query->where('identification_type', $this->input('identification_type'))
                     )
@@ -44,5 +45,10 @@ class UpdateCustomerRequest extends FormRequest
             'photo' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.config('customer.photo_max_kb')],
             'status' => ['sometimes', 'string', Rule::in(['active', 'inactive'])],
         ];
+    }
+
+    private function businessId(): ?int
+    {
+        return $this->route('customer')?->business_id;
     }
 }

@@ -18,7 +18,18 @@ class StoreRepaymentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'loan_id' => ['required', 'integer', 'exists:loans,id'],
+            'loan_id' => [
+                'required',
+                'integer',
+                // A loan of another business is indistinguishable from a missing one.
+                Rule::exists('loans', 'id')->where(function ($query) {
+                    $businessId = $this->user()?->business_id;
+
+                    if ($businessId !== null) {
+                        $query->where('business_id', $businessId);
+                    }
+                }),
+            ],
             'repayment_schedule_id' => ['required', 'integer', 'exists:repayment_schedules,id'],
             'amount' => ['required', 'numeric', 'gt:0', 'regex:/^\d+(\.\d{1,2})?$/'],
             'repayment_date' => ['required', 'date', 'before_or_equal:today'],

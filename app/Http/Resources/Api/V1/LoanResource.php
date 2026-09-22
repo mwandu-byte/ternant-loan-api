@@ -58,6 +58,8 @@ class LoanResource extends JsonResource
             'notes' => $this->notes,
             'collaterals' => CollateralResource::collection($this->collaterals),
             'repayment_schedules' => RepaymentScheduleResource::collection($this->repaymentSchedules),
+            'guarantors' => GuarantorResource::collection($this->whenLoaded('guarantors')),
+            'application_fee' => new ApplicationFeeResource($this->whenLoaded('applicationFee')),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];

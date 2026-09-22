@@ -22,6 +22,8 @@ class StoreUserRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
             'password' => ['required', 'confirmed', Password::defaults()],
+            /** Only honoured for platform users; ignored for business users. */
+            'business_id' => ['sometimes', 'nullable', 'integer', 'exists:businesses,id'],
             'status' => ['sometimes', 'string', Rule::in(['active', 'inactive'])],
             'roles' => ['sometimes', 'array'],
             'roles.*' => ['distinct', Rule::exists('roles', 'name')->where('guard_name', 'api')],

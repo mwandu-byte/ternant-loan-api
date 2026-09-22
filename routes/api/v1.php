@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\Api\V1\ApplicationFeeController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BusinessController;
 use App\Http\Controllers\Api\V1\CashFlowReportController;
 use App\Http\Controllers\Api\V1\CollateralController;
 use App\Http\Controllers\Api\V1\CollectionReportController;
@@ -9,6 +11,7 @@ use App\Http\Controllers\Api\V1\CustomerReportController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DisbursementReportController;
 use App\Http\Controllers\Api\V1\GracePeriodController;
+use App\Http\Controllers\Api\V1\GuarantorController;
 use App\Http\Controllers\Api\V1\InterestRuleController;
 use App\Http\Controllers\Api\V1\LoanAmountConfigurationController;
 use App\Http\Controllers\Api\V1\LoanController;
@@ -42,12 +45,28 @@ Route::prefix('auth')->group(function () {
 });
 
 Route::middleware('auth:api')->group(function () {
+    Route::get('business', [BusinessController::class, 'current']);
+
+    Route::prefix('businesses')->group(function () {
+        Route::get('/', [BusinessController::class, 'index'])->middleware('permission:businesses.view');
+        Route::post('/', [BusinessController::class, 'store'])->middleware('permission:businesses.create');
+        Route::get('{business}', [BusinessController::class, 'show'])->middleware('permission:businesses.view');
+        Route::put('{business}', [BusinessController::class, 'update'])->middleware('permission:businesses.update');
+    });
+
+    Route::get('application-fees/{applicationFee}', [ApplicationFeeController::class, 'show'])->middleware('permission:application-fees.view');
+
     Route::prefix('customers')->group(function () {
         Route::get('/', [CustomerController::class, 'index'])->middleware('permission:customers.view');
         Route::post('/', [CustomerController::class, 'store'])->middleware('permission:customers.create');
         Route::get('{customer}', [CustomerController::class, 'show'])->middleware('permission:customers.view');
         Route::put('{customer}', [CustomerController::class, 'update'])->middleware('permission:customers.update');
         Route::delete('{customer}', [CustomerController::class, 'destroy'])->middleware('permission:customers.delete');
+
+        Route::prefix('{customer}/application-fees')->group(function () {
+            Route::get('/', [ApplicationFeeController::class, 'index'])->middleware('permission:application-fees.view');
+            Route::post('/', [ApplicationFeeController::class, 'store'])->middleware('permission:application-fees.create');
+        });
 
         Route::prefix('{customer}/collaterals')->group(function () {
             Route::get('/', [CollateralController::class, 'index'])->middleware('permission:collateral.view');
@@ -68,6 +87,14 @@ Route::middleware('auth:api')->group(function () {
         Route::prefix('{loan}/repayment-schedules')->group(function () {
             Route::get('/', [RepaymentScheduleController::class, 'indexForLoan'])->middleware('permission:repayment-schedules.view');
             Route::post('generate', [RepaymentScheduleController::class, 'generate'])->middleware('permission:repayment-schedules.create');
+        });
+
+        Route::prefix('{loan}/guarantors')->group(function () {
+            Route::get('/', [GuarantorController::class, 'index'])->middleware('permission:guarantors.view');
+            Route::post('/', [GuarantorController::class, 'store'])->middleware('permission:guarantors.create');
+            Route::get('{guarantor}', [GuarantorController::class, 'show'])->middleware('permission:guarantors.view');
+            Route::put('{guarantor}', [GuarantorController::class, 'update'])->middleware('permission:guarantors.update');
+            Route::delete('{guarantor}', [GuarantorController::class, 'destroy'])->middleware('permission:guarantors.delete');
         });
 
         Route::prefix('{loan}/payments')->group(function () {

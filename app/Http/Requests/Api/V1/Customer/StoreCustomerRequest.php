@@ -18,6 +18,11 @@ class StoreCustomerRequest extends FormRequest
     public function rules(): array
     {
         return [
+            /**
+             * Only honoured for platform users; business users always create
+             * customers in their own business.
+             */
+            'business_id' => ['sometimes', 'integer', 'exists:businesses,id'],
             'full_name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:20'],
             'email' => ['nullable', 'email', 'max:255'],
@@ -26,7 +31,7 @@ class StoreCustomerRequest extends FormRequest
                 'required',
                 'string',
                 'max:100',
-                Rule::unique('customers')->where(
+                Rule::unique('customers')->where('business_id', $this->businessId())->where(
                     fn ($query) => $query->where('identification_type', $this->input('identification_type'))
                 ),
             ],
@@ -41,5 +46,10 @@ class StoreCustomerRequest extends FormRequest
             'photo' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.config('customer.photo_max_kb')],
             'status' => ['sometimes', 'string', Rule::in(['active', 'inactive'])],
         ];
+    }
+
+    private function businessId(): ?int
+    {
+        return $this->user()?->business_id ?? $this->input('business_id');
     }
 }

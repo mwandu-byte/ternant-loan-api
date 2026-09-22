@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToBusiness;
 use App\Support\AccessScope;
 use Database\Factories\CustomerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 #[Fillable([
+    'business_id',
     'created_by',
     'full_name',
     'phone',
@@ -26,7 +28,7 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 class Customer extends Model
 {
     /** @use HasFactory<CustomerFactory> */
-    use HasFactory;
+    use BelongsToBusiness, HasFactory;
 
     /**
      * @param  Builder<Customer>  $query
@@ -40,6 +42,11 @@ class Customer extends Model
     public function collaterals(): HasMany
     {
         return $this->hasMany(Collateral::class);
+    }
+
+    public function applicationFees(): HasMany
+    {
+        return $this->hasMany(ApplicationFee::class);
     }
 
     public function loans(): HasMany
