@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BusinessConfiguration;
 use Database\Factories\RepaymentFrequencyFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -9,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 #[Fillable([
+    'business_id',
     'name',
     'code',
     'interval_value',
@@ -18,7 +20,7 @@ use Illuminate\Database\Eloquent\Model;
 class RepaymentFrequency extends Model
 {
     /** @use HasFactory<RepaymentFrequencyFactory> */
-    use HasFactory;
+    use BusinessConfiguration, HasFactory;
 
     /**
      * @return array<string, string>

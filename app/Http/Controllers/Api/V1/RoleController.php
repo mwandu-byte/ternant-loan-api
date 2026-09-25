@@ -31,6 +31,10 @@ use Spatie\Permission\Models\Role;
  * leave zero enabled users holding `roles.update` — the permission
  * needed to fix any authorization mistake.
  *
+ * Roles are shared by every business, so creating, updating or deleting
+ * them is limited to platform users (users attached to no business);
+ * business users get 403 on those endpoints and can only read.
+ *
  * All endpoints return the application's standard envelope:
  * `{"success": bool, "message": string, "data"?: object|null, "errors"?: object}`.
  * All endpoints require `Authorization: Bearer {access_token}` plus the

@@ -16,7 +16,7 @@ class PenaltyRuleServiceResolveTest extends TestCase
         PenaltyRule::factory()->create(['minimum_amount' => 0, 'maximum_amount' => 499999.99, 'penalty_value' => 50000]);
         $upper = PenaltyRule::factory()->create(['minimum_amount' => 500000, 'maximum_amount' => 2000000, 'penalty_value' => 100000]);
 
-        $rule = (new PenaltyRuleService)->resolveApplicableRule(750000);
+        $rule = (new PenaltyRuleService)->resolveApplicableRule(750000, null);
 
         $this->assertNotNull($rule);
         $this->assertSame($upper->id, $rule->id);
@@ -27,7 +27,7 @@ class PenaltyRuleServiceResolveTest extends TestCase
         PenaltyRule::factory()->create(['minimum_amount' => 0, 'maximum_amount' => 2999999.99, 'penalty_value' => 50000]);
         $unbounded = PenaltyRule::factory()->create(['minimum_amount' => 3000000, 'maximum_amount' => null, 'penalty_value' => 100000]);
 
-        $rule = (new PenaltyRuleService)->resolveApplicableRule(10000000);
+        $rule = (new PenaltyRuleService)->resolveApplicableRule(10000000, null);
 
         $this->assertNotNull($rule);
         $this->assertSame($unbounded->id, $rule->id);
@@ -37,14 +37,14 @@ class PenaltyRuleServiceResolveTest extends TestCase
     {
         PenaltyRule::factory()->create(['minimum_amount' => 0, 'maximum_amount' => 100000, 'penalty_value' => 50000]);
 
-        $rule = (new PenaltyRuleService)->resolveApplicableRule(500000);
+        $rule = (new PenaltyRuleService)->resolveApplicableRule(500000, null);
 
         $this->assertNull($rule);
     }
 
     public function test_returns_null_rather_than_throwing_when_no_rules_exist_at_all(): void
     {
-        $rule = (new PenaltyRuleService)->resolveApplicableRule(1000000);
+        $rule = (new PenaltyRuleService)->resolveApplicableRule(1000000, null);
 
         $this->assertNull($rule);
     }
@@ -53,7 +53,7 @@ class PenaltyRuleServiceResolveTest extends TestCase
     {
         PenaltyRule::factory()->inactive()->create(['minimum_amount' => 0, 'maximum_amount' => 1000000, 'penalty_value' => 50000]);
 
-        $rule = (new PenaltyRuleService)->resolveApplicableRule(500000);
+        $rule = (new PenaltyRuleService)->resolveApplicableRule(500000, null);
 
         $this->assertNull($rule);
     }
@@ -62,8 +62,8 @@ class PenaltyRuleServiceResolveTest extends TestCase
     {
         $rule = PenaltyRule::factory()->create(['minimum_amount' => 100000, 'maximum_amount' => 200000, 'penalty_value' => 50000]);
 
-        $atMinimum = (new PenaltyRuleService)->resolveApplicableRule(100000);
-        $atMaximum = (new PenaltyRuleService)->resolveApplicableRule(200000);
+        $atMinimum = (new PenaltyRuleService)->resolveApplicableRule(100000, null);
+        $atMaximum = (new PenaltyRuleService)->resolveApplicableRule(200000, null);
 
         $this->assertSame($rule->id, $atMinimum->id);
         $this->assertSame($rule->id, $atMaximum->id);

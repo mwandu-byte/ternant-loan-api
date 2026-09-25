@@ -18,6 +18,11 @@ use Illuminate\Http\JsonResponse;
  * A repayment term defines an available loan duration (e.g. 3 months, 6
  * months). Only active terms may be selected when a loan is created.
  *
+ * Loan configuration is per business. A business user sees and edits
+ * only their own business's configuration; a platform user manages the
+ * platform defaults that are copied into every new business. Another
+ * business's rows are reported as not found (404).
+ *
  * All endpoints return the application's standard envelope:
  * `{"success": bool, "message": string, "data"?: object|null, "errors"?: object}`.
  * All endpoints require `Authorization: Bearer {access_token}` plus the

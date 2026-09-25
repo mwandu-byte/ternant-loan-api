@@ -11,12 +11,17 @@ use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Manage the global grace period.
+ * Manage the grace period.
  *
- * The grace period is a single, global configuration value: the number
+ * The grace period is a single configuration value per business: the number
  * of days (or other unit) after a repayment's due date before it is
  * considered overdue. This module manages the configuration value only
  * — overdue detection and penalty processing are implemented separately.
+ *
+ * Loan configuration is per business. A business user sees and edits
+ * only their own business's configuration; a platform user manages the
+ * platform defaults that are copied into every new business. Another
+ * business's rows are reported as not found (404).
  *
  * All endpoints return the application's standard envelope:
  * `{"success": bool, "message": string, "data"?: object|null, "errors"?: object}`.
@@ -43,7 +48,7 @@ class GracePeriodController extends Controller
     /**
      * Show grace period
      *
-     * Returns the single, global grace period configuration.
+     * Returns the acting user's grace period configuration.
      */
     #[Response(200, description: 'Grace period retrieved.', type: 'array{success: true, message: string, data: '.self::GRACE_PERIOD_SCHEMA.'}')]
     #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[
@@ -62,7 +67,7 @@ class GracePeriodController extends Controller
     /**
      * Update grace period
      *
-     * Updates the single, global grace period configuration.
+     * Updates the acting user's grace period configuration.
      */
     #[Response(200, description: 'Grace period updated.', type: 'array{success: true, message: string, data: '.self::GRACE_PERIOD_SCHEMA.'}')]
     #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[

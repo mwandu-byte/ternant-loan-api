@@ -90,7 +90,7 @@ class PenaltyService
 
         // ORIGINAL loan principal — never outstanding balance, remaining
         // installment amount, or interest — per the approved business rule.
-        $rule = $this->penaltyRuleService->resolveApplicableRule((float) $loan->principal_amount);
+        $rule = $this->penaltyRuleService->resolveApplicableRule((float) $loan->principal_amount, $loan->business_id);
 
         if ($rule === null) {
             return null;

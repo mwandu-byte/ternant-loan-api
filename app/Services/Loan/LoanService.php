@@ -94,9 +94,11 @@ class LoanService
         $customer = $customerQuery->findOrFail($data['customer_id']);
         $principal = (float) $data['principal_amount'];
 
-        $this->loanAmountConfigurationService->assertWithinRange($principal);
+        // Loan rules always come from the customer's business, whoever
+        // is acting (a tenant user, or a platform user lending on its behalf).
+        $this->loanAmountConfigurationService->assertWithinRange($principal, $customer->business_id);
 
-        $interestRule = $this->interestRuleService->resolveApplicableRule($principal);
+        $interestRule = $this->interestRuleService->resolveApplicableRule($principal, $customer->business_id);
         $configuredRate = (float) $interestRule->interest_rate;
 
         $hasDiscount = (bool) ($data['has_discount'] ?? false);
@@ -106,7 +108,7 @@ class LoanService
         $interestAmount = round($principal * $appliedRate / 100, 2);
         $totalAmount = round($principal + $interestAmount, 2);
 
-        $frequency = $this->repaymentFrequencyService->resolveActiveByCode($data['repayment_frequency']);
+        $frequency = $this->repaymentFrequencyService->resolveActiveByCode($data['repayment_frequency'], $customer->business_id);
 
         $dueDate = $this->calculateDueDate(
             Carbon::parse($data['start_date']),
@@ -264,6 +266,7 @@ class LoanService
             if ($recalculateDueDate) {
                 $frequency = $this->repaymentFrequencyService->resolveActiveByCode(
                     $data['repayment_frequency'] ?? $loan->repayment_frequency,
+                    $loan->business_id,
                 );
 
                 $updateData['due_date'] = $this->calculateDueDate(

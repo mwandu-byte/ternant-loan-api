@@ -58,6 +58,8 @@ class PermissionSeeder extends Seeder
             'businesses.create',
             'businesses.update',
 
+            'business-settings.update',
+
             'application-fees.view',
             'application-fees.create',
 

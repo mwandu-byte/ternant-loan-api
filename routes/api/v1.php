@@ -36,6 +36,7 @@ Route::prefix('auth')->group(function () {
     Route::post('refresh', [AuthController::class, 'refresh']);
     Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:forgot-password');
     Route::post('reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:reset-password');
+    Route::post('register', [AuthController::class, 'register'])->middleware('throttle:register');
 
     Route::middleware('auth:api')->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
@@ -46,6 +47,7 @@ Route::prefix('auth')->group(function () {
 
 Route::middleware('auth:api')->group(function () {
     Route::get('business', [BusinessController::class, 'current']);
+    Route::put('business', [BusinessController::class, 'updateCurrent'])->middleware('permission:business-settings.update');
 
     Route::prefix('businesses')->group(function () {
         Route::get('/', [BusinessController::class, 'index'])->middleware('permission:businesses.view');
@@ -179,24 +181,24 @@ Route::middleware('auth:api')->group(function () {
 
     Route::prefix('roles')->group(function () {
         Route::get('/', [RoleController::class, 'index'])->middleware('permission:roles.view');
-        Route::post('/', [RoleController::class, 'store'])->middleware('permission:roles.create');
+        Route::post('/', [RoleController::class, 'store'])->middleware(['platform', 'permission:roles.create']);
         Route::get('{role}', [RoleController::class, 'show'])->middleware('permission:roles.view');
-        Route::put('{role}', [RoleController::class, 'update'])->middleware('permission:roles.update');
-        Route::delete('{role}', [RoleController::class, 'destroy'])->middleware('permission:roles.delete');
+        Route::put('{role}', [RoleController::class, 'update'])->middleware(['platform', 'permission:roles.update']);
+        Route::delete('{role}', [RoleController::class, 'destroy'])->middleware(['platform', 'permission:roles.delete']);
 
         Route::prefix('{role}/permissions')->group(function () {
-            Route::put('/', [RoleController::class, 'syncPermissions'])->middleware('permission:roles.update');
-            Route::post('/', [RoleController::class, 'addPermission'])->middleware('permission:roles.update');
-            Route::delete('{permission}', [RoleController::class, 'revokePermission'])->middleware('permission:roles.update');
+            Route::put('/', [RoleController::class, 'syncPermissions'])->middleware(['platform', 'permission:roles.update']);
+            Route::post('/', [RoleController::class, 'addPermission'])->middleware(['platform', 'permission:roles.update']);
+            Route::delete('{permission}', [RoleController::class, 'revokePermission'])->middleware(['platform', 'permission:roles.update']);
         });
     });
 
     Route::prefix('permissions')->group(function () {
         Route::get('/', [PermissionController::class, 'index'])->middleware('permission:permissions.view');
-        Route::post('/', [PermissionController::class, 'store'])->middleware('permission:permissions.create');
+        Route::post('/', [PermissionController::class, 'store'])->middleware(['platform', 'permission:permissions.create']);
         Route::get('{permission}', [PermissionController::class, 'show'])->middleware('permission:permissions.view');
-        Route::put('{permission}', [PermissionController::class, 'update'])->middleware('permission:permissions.update');
-        Route::delete('{permission}', [PermissionController::class, 'destroy'])->middleware('permission:permissions.delete');
+        Route::put('{permission}', [PermissionController::class, 'update'])->middleware(['platform', 'permission:permissions.update']);
+        Route::delete('{permission}', [PermissionController::class, 'destroy'])->middleware(['platform', 'permission:permissions.delete']);
     });
 
     Route::prefix('penalties')->group(function () {

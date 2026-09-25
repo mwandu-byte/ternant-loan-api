@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BusinessConfiguration;
 use Database\Factories\GracePeriodFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -9,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 #[Fillable([
+    'business_id',
     'duration',
     'unit',
     'status',
@@ -16,7 +18,7 @@ use Illuminate\Database\Eloquent\Model;
 class GracePeriod extends Model
 {
     /** @use HasFactory<GracePeriodFactory> */
-    use HasFactory;
+    use BusinessConfiguration, HasFactory;
 
     /**
      * @return array<string, string>

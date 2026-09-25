@@ -21,7 +21,7 @@ class UpdateBusinessRequest extends FormRequest
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'registration_number' => ['nullable', 'string', 'max:100', Rule::unique('businesses', 'registration_number')->ignore($this->route('business'))],
             'phone' => ['nullable', 'string', 'max:20'],
-            'email' => ['nullable', 'email', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255', Rule::unique('businesses', 'email')->ignore($this->route('business'))],
             'address' => ['nullable', 'string', 'max:2000'],
             'status' => ['sometimes', 'string', Rule::in(['active', 'suspended'])],
             'requires_application_fee' => ['sometimes', 'boolean'],

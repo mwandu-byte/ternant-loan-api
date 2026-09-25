@@ -8,9 +8,18 @@ use Illuminate\Validation\ValidationException;
 
 class LoanAmountConfigurationService
 {
+    /**
+     * The acting user's configuration: their business's, or the platform
+     * default template for a platform user.
+     */
     public function get(): LoanAmountConfiguration
     {
-        return LoanAmountConfiguration::query()->firstOrFail();
+        return $this->forBusiness(auth()->user()?->business_id);
+    }
+
+    public function forBusiness(?int $businessId): LoanAmountConfiguration
+    {
+        return LoanAmountConfiguration::query()->forBusiness($businessId)->firstOrFail();
     }
 
     /**
@@ -37,12 +46,12 @@ class LoanAmountConfigurationService
     }
 
     /**
-     * Assert the given principal falls within the configured global loan
-     * amount range. A null maximum means there is no upper limit.
+     * Assert the given principal falls within the business's configured
+     * loan amount range. A null maximum means there is no upper limit.
      */
-    public function assertWithinRange(float $principal): void
+    public function assertWithinRange(float $principal, ?int $businessId): void
     {
-        $configuration = $this->get();
+        $configuration = $this->forBusiness($businessId);
 
         $minimum = (float) $configuration->minimum_amount;
         $maximum = $configuration->maximum_amount !== null ? (float) $configuration->maximum_amount : null;

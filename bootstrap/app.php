@@ -28,6 +28,7 @@ use App\Exceptions\Role\RoleAssignedToUsersException;
 use App\Exceptions\User\SelfDeletionNotAllowedException;
 use App\Exceptions\User\SelfRoleModificationException;
 use App\Exceptions\User\UserHasRelatedRecordsException;
+use App\Http\Middleware\EnsurePlatformUser;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -59,6 +60,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
+            'platform' => EnsurePlatformUser::class,
         ]);
 
         // This is a JSON-only API — there is no "login" web route to redirect
