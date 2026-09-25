@@ -9,7 +9,7 @@ class RepaymentTermService
 {
     public function list(): Collection
     {
-        return RepaymentTerm::query()->orderBy('value')->get();
+        return RepaymentTerm::query()->forUser(auth()->user())->orderBy('value')->get();
     }
 
     /**

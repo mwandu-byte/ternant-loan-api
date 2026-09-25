@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Requests\Api\V1\Auth\RegisterBusinessRequest;
 use App\Http\Requests\Api\V1\ChangePasswordRequest;
 use App\Http\Requests\Api\V1\ForgotPasswordRequest;
 use App\Http\Requests\Api\V1\LoginRequest;
 use App\Http\Requests\Api\V1\RefreshTokenRequest;
 use App\Http\Requests\Api\V1\ResetPasswordRequest;
+use App\Http\Resources\Api\V1\BusinessResource;
 use App\Http\Responses\ApiResponse;
 use App\Models\User;
 use App\Services\Auth\AuthService;
+use App\Services\Auth\BusinessRegistrationService;
 use App\Services\Auth\ChangePasswordService;
 use App\Services\Auth\ForgotPasswordService;
 use App\Services\Auth\ResetPasswordService;
@@ -19,7 +22,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Login, refresh, logout, current-user, and password-management endpoints.
+ * Business self-registration, login, refresh, logout, current-user, and
+ * password-management endpoints.
  *
  * All endpoints return the application's standard envelope:
  * `{"success": bool, "message": string, "data"?: object|null, "errors"?: object}`.
@@ -31,6 +35,8 @@ class AuthController extends Controller
     private const USER_SCHEMA = 'array{id: int, name: string, email: string, email_verified_at: string|null, created_at: string, updated_at: string, roles: string[]}';
 
     private const TOKEN_DATA_SCHEMA = 'array{access_token: string, refresh_token: string, token_type: string, expires_in: int, user: '.self::USER_SCHEMA.'}';
+
+    private const BUSINESS_SCHEMA = 'array{id: int, name: string, registration_number: string|null, phone: string|null, email: string|null, address: string|null, status: string, requires_application_fee: bool, requires_guarantor: bool, created_at: string, updated_at: string}';
 
     private const NULL_DATA_SCHEMA = 'array{success: true, message: string, data: null}';
 
@@ -45,6 +51,7 @@ class AuthController extends Controller
         private readonly ForgotPasswordService $forgotPasswordService,
         private readonly ResetPasswordService $resetPasswordService,
         private readonly ChangePasswordService $changePasswordService,
+        private readonly BusinessRegistrationService $businessRegistrationService,
     ) {
         //
     }
@@ -94,6 +101,101 @@ class AuthController extends Controller
             ...$result,
             'user' => $this->userPayload($result['user']),
         ], 'Login successful');
+    }
+
+    /**
+     * Register a business
+     *
+     * Public self-service onboarding. Creates a new business (tenant) and its
+     * first user, the **business owner**, in a single transaction: if any
+     * step fails, nothing is created. No platform administrator is needed.
+     *
+     * The owner:
+     * - belongs to the new business only and can never see another business's data
+     * - gets the `owner` role: full control of the business's customers, loans,
+     *   guarantors, application fees, users, loan configuration and business settings
+     * - is **not** a platform administrator and cannot manage other businesses
+     *   or the platform-wide role/permission definitions
+     *
+     * The business starts `active`, with `requires_application_fee = false` and
+     * `requires_guarantor = false`. The owner can change both later with
+     * `PUT /business`. It also gets its own copy of the platform's default loan
+     * configuration (interest rules, repayment frequencies and terms, penalty
+     * rules, grace period, loan amount range), which it can then adjust
+     * independently.
+     *
+     * On success the owner is signed in straight away. The response contains
+     * the same access/refresh token pair as login, so no separate login call
+     * is needed.
+     *
+     * Duplicates are rejected with 422: a business email or registration
+     * number already in use, or an owner email that already belongs to a user.
+     * Phone numbers are normalized to international format (e.g. `+255712345678`).
+     */
+    #[Response(201, description: 'Business registered and owner signed in.', type: 'array{success: true, message: string, data: array{access_token: string, refresh_token: string, token_type: string, expires_in: int, user: '.self::USER_SCHEMA.', business: '.self::BUSINESS_SCHEMA.'}}', examples: [[
+        'success' => true,
+        'message' => 'Business registered successfully',
+        'data' => [
+            'access_token' => 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...',
+            'refresh_token' => 'E4XzsimVrZBKazG0BxsPuPBgudVk4jVz0fvQkdJWmLBweGs12zA2oo51CxSTQ8yn',
+            'token_type' => 'Bearer',
+            'expires_in' => 900,
+            'user' => [
+                'id' => 12,
+                'name' => 'Asha Mushi',
+                'email' => 'asha@kilimocredit.co.tz',
+                'email_verified_at' => null,
+                'created_at' => '2026-09-25T08:00:00.000000Z',
+                'updated_at' => '2026-09-25T08:00:00.000000Z',
+                'roles' => ['owner'],
+            ],
+            'business' => [
+                'id' => 7,
+                'name' => 'Kilimo Credit Ltd',
+                'registration_number' => 'BRELA-123456',
+                'phone' => '+255712345678',
+                'email' => 'info@kilimocredit.co.tz',
+                'address' => 'Arusha, Tanzania',
+                'status' => 'active',
+                'requires_application_fee' => false,
+                'requires_guarantor' => false,
+                'created_at' => '2026-09-25T08:00:00.000000Z',
+                'updated_at' => '2026-09-25T08:00:00.000000Z',
+            ],
+        ],
+    ]])]
+    #[Response(422, description: 'Validation failed: a missing or malformed field, a password that is too weak or unconfirmed, or a duplicate registration (business email, business registration number or owner email already taken).', type: self::VALIDATION_ERROR_SCHEMA, examples: [
+        [
+            'success' => false,
+            'message' => 'The given data was invalid.',
+            'errors' => [
+                'business.name' => ['The business name field is required.'],
+                'owner.password' => ['The password field confirmation does not match.'],
+            ],
+        ],
+        [
+            'success' => false,
+            'message' => 'The given data was invalid.',
+            'errors' => [
+                'business.email' => ['The business email has already been taken.'],
+                'business.registration_number' => ['The registration number has already been taken.'],
+                'owner.email' => ['The owner email has already been taken.'],
+            ],
+        ],
+    ])]
+    #[Response(429, description: 'Too many registration attempts from this IP.', type: self::RATE_LIMITED_SCHEMA, examples: [[
+        'success' => false,
+        'message' => 'Too many requests. Please try again later.',
+    ]])]
+    public function register(RegisterBusinessRequest $request): JsonResponse
+    {
+        $result = $this->businessRegistrationService->register($request->validated());
+
+        return ApiResponse::success([
+            ...$result,
+            'user' => $this->userPayload($result['user']),
+            'business' => (new BusinessResource($result['business']))->resolve(),
+        ], 'Business registered successfully', 201);
     }
 
     /**

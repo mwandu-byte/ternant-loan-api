@@ -3,10 +3,18 @@
 namespace App\Services\Business;
 
 use App\Models\Business;
+use App\Services\LoanConfiguration\LoanConfigurationProvisioner;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 
 class BusinessService
 {
+    public function __construct(
+        private readonly LoanConfigurationProvisioner $loanConfigurationProvisioner,
+    ) {
+        //
+    }
+
     /**
      * @param  array<string, mixed>  $filters
      */
@@ -34,10 +42,16 @@ class BusinessService
      */
     public function create(array $data): Business
     {
-        // status and the two boolean flags fall back to DB-level defaults
-        // when omitted; refresh so the returned model reflects them instead
-        // of the nulls left over from the in-memory pre-insert state.
-        return Business::create($data)->refresh();
+        return DB::transaction(function () use ($data) {
+            // status and the two boolean flags fall back to DB-level defaults
+            // when omitted; refresh so the returned model reflects them instead
+            // of the nulls left over from the in-memory pre-insert state.
+            $business = Business::create($data)->refresh();
+
+            $this->loanConfigurationProvisioner->provisionFor($business);
+
+            return $business;
+        });
     }
 
     /**

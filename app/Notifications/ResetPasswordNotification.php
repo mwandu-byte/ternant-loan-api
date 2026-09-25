@@ -24,7 +24,7 @@ class ResetPasswordNotification extends Notification
     public function toMail(mixed $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Your Password Reset Code')
+            ->subject('Your '.config('app.name').' password reset code')
             ->line('You are receiving this email because we received a password reset request for your account.')
             ->line('Enter this code in the app to reset your password:')
             ->line(new HtmlString(

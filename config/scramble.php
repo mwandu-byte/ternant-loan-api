@@ -50,14 +50,14 @@ return [
         /*
          * Description rendered on the home page of the API documentation (`/docs/api`).
          */
-        'description' => 'REST API for the Loan Management System mobile application. '
+        'description' => 'REST API for CareSmart Loans (web) and the SLoan mobile app, by CareSmart Technologies. '
             .'The API provides authentication, authorization, customer management, loan management, '
             .'collateral management, repayment management, payment management, penalty management, '
             .'reporting, dashboard, and system configuration functionality.',
     ],
 
     'ui' => [
-        'title' => 'Loan Management System API',
+        'title' => 'CareSmart Loans API',
     ],
 
     'renderer' => 'scalar',

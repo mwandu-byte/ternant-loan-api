@@ -12,7 +12,7 @@ class InterestRuleService
 {
     public function list(): Collection
     {
-        return InterestRule::query()->orderBy('minimum_amount')->get();
+        return InterestRule::query()->forUser(auth()->user())->orderBy('minimum_amount')->get();
     }
 
     /**
@@ -56,12 +56,13 @@ class InterestRuleService
     }
 
     /**
-     * Resolve the active interest rule whose amount range covers the given
-     * principal. Throws if no configured rule matches.
+     * Resolve the given business's active interest rule whose amount range
+     * covers the principal. Throws if no configured rule matches.
      */
-    public function resolveApplicableRule(float $principal): InterestRule
+    public function resolveApplicableRule(float $principal, ?int $businessId): InterestRule
     {
         $rule = InterestRule::query()
+            ->forBusiness($businessId)
             ->active()
             ->where('minimum_amount', '<=', $principal)
             ->where(function ($query) use ($principal) {
@@ -88,7 +89,7 @@ class InterestRuleService
             return;
         }
 
-        $query = InterestRule::query()->active();
+        $query = InterestRule::query()->forUser(auth()->user())->active();
 
         if ($ignoreId !== null) {
             $query->where('id', '!=', $ignoreId);

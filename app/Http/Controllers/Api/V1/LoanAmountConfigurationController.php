@@ -11,10 +11,15 @@ use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Manage the global loan amount configuration.
+ * Manage the loan amount configuration.
  *
- * This is the single, global minimum and maximum principal amount a loan
+ * This is the single, per-business minimum and maximum principal amount a loan
  * may be created for. A null maximum means there is no upper limit.
+ *
+ * Loan configuration is per business. A business user sees and edits
+ * only their own business's configuration; a platform user manages the
+ * platform defaults that are copied into every new business. Another
+ * business's rows are reported as not found (404).
  *
  * All endpoints return the application's standard envelope:
  * `{"success": bool, "message": string, "data"?: object|null, "errors"?: object}`.
@@ -41,7 +46,7 @@ class LoanAmountConfigurationController extends Controller
     /**
      * Show loan amount configuration
      *
-     * Returns the single, global loan amount configuration.
+     * Returns the acting user's loan amount configuration.
      */
     #[Response(200, description: 'Loan amount configuration retrieved.', type: 'array{success: true, message: string, data: '.self::LOAN_AMOUNT_CONFIGURATION_SCHEMA.'}')]
     #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[
@@ -60,7 +65,7 @@ class LoanAmountConfigurationController extends Controller
     /**
      * Update loan amount configuration
      *
-     * Updates the single, global loan amount configuration.
+     * Updates the acting user's loan amount configuration.
      */
     #[Response(200, description: 'Loan amount configuration updated.', type: 'array{success: true, message: string, data: '.self::LOAN_AMOUNT_CONFIGURATION_SCHEMA.'}')]
     #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[

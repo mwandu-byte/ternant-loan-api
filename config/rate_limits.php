@@ -19,4 +19,15 @@ return [
 
     'change_password' => (int) env('RATE_LIMIT_CHANGE_PASSWORD', 5),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Self-Registration Rate Limit
+    |--------------------------------------------------------------------------
+    |
+    | Business sign-ups per minute allowed from a single IP address.
+    |
+    */
+
+    'register' => (int) env('RATE_LIMIT_REGISTER', 5),
+
 ];

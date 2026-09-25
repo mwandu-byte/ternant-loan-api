@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BusinessConfiguration;
 use Database\Factories\PenaltyRuleFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -9,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 #[Fillable([
+    'business_id',
     'minimum_amount',
     'maximum_amount',
     'penalty_type',
@@ -19,7 +21,7 @@ use Illuminate\Database\Eloquent\Model;
 class PenaltyRule extends Model
 {
     /** @use HasFactory<PenaltyRuleFactory> */
-    use HasFactory;
+    use BusinessConfiguration, HasFactory;
 
     /**
      * @return array<string, string>

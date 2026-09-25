@@ -10,7 +10,7 @@ class RepaymentFrequencyService
 {
     public function list(): Collection
     {
-        return RepaymentFrequency::query()->orderBy('interval_value')->get();
+        return RepaymentFrequency::query()->forUser(auth()->user())->orderBy('interval_value')->get();
     }
 
     /**
@@ -38,9 +38,9 @@ class RepaymentFrequencyService
         $repaymentFrequency->delete();
     }
 
-    public function resolveActiveByCode(string $code): RepaymentFrequency
+    public function resolveActiveByCode(string $code, ?int $businessId): RepaymentFrequency
     {
-        $frequency = RepaymentFrequency::query()->active()->where('code', $code)->first();
+        $frequency = RepaymentFrequency::query()->forBusiness($businessId)->active()->where('code', $code)->first();
 
         if ($frequency === null) {
             throw ValidationException::withMessages([

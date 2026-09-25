@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SLoan">
+  <defs>
+    <linearGradient id="sloan-tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B1F4B"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
+    </linearGradient>
+    <linearGradient id="sloan-coin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F6D77A"/>
+      <stop offset="1" stop-color="#D4A12A"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#sloan-tile)"/>
+  <g transform="translate(-4 14)">
+  <!-- An "S" drawn from a coin (bottom left) up into a growth arrow (top right). -->
+  <path d="M168 360 C192 388 224 400 262 400 C316 400 352 374 352 332 C352 290 314 276 258 264 C200 252 160 234 160 186 C160 142 202 116 256 116 C282 116 304 110 324 100"
+        fill="none" stroke="#FFFFFF" stroke-width="54" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M378 66 L343 142 L295 64 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="14" stroke-linejoin="round"/>
+  <circle cx="146" cy="382" r="40" fill="url(#sloan-coin)" stroke="#0B1F4B" stroke-width="10"/>
+  </g>
+</svg>

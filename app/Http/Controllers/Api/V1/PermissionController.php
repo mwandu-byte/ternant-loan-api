@@ -27,6 +27,10 @@ use Spatie\Permission\Models\Permission;
  * `/roles/{role}/permissions` endpoints in the Roles group; this group
  * only manages Permission records themselves.
  *
+ * Permissions are shared by every business, so creating, updating or deleting
+ * them is limited to platform users (users attached to no business);
+ * business users get 403 on those endpoints and can only read.
+ *
  * All endpoints return the application's standard envelope:
  * `{"success": bool, "message": string, "data"?: object|null, "errors"?: object}`.
  * All endpoints require `Authorization: Bearer {access_token}` plus the

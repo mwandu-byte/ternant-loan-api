@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api\V1\Loan;
 
 use App\Http\Requests\Api\V1\Guarantor\GuarantorRules;
+use App\Models\Customer;
 use App\Models\RepaymentFrequency;
 use App\Models\RepaymentTerm;
 use Illuminate\Foundation\Http\FormRequest;
@@ -35,8 +36,8 @@ class StoreLoanRequest extends FormRequest
                 }),
             ],
             'principal_amount' => ['required', 'numeric', 'min:0.01'],
-            'repayment_frequency' => ['required', 'string', Rule::in(RepaymentFrequency::query()->where('status', 'active')->pluck('code'))],
-            'repayment_term' => ['required', 'integer', Rule::in(RepaymentTerm::query()->where('status', 'active')->pluck('value'))],
+            'repayment_frequency' => ['required', 'string', Rule::in(RepaymentFrequency::query()->forBusiness($this->loanBusinessId())->where('status', 'active')->pluck('code'))],
+            'repayment_term' => ['required', 'integer', Rule::in(RepaymentTerm::query()->forBusiness($this->loanBusinessId())->where('status', 'active')->pluck('value'))],
             'start_date' => ['required', 'date'],
             'status' => ['nullable', 'string', Rule::in(['pending', 'active'])],
             'notes' => ['nullable', 'string', 'max:2000'],
@@ -54,5 +55,14 @@ class StoreLoanRequest extends FormRequest
             'payment_method' => ['nullable', 'string', Rule::in(config('payment.methods'))],
             'payment_reference_no' => ['nullable', 'string', 'max:255'],
         ];
+    }
+
+    /**
+     * Frequencies and terms are configured per business: the ones on
+     * offer are those of the customer's business.
+     */
+    private function loanBusinessId(): ?int
+    {
+        return Customer::query()->whereKey($this->integer('customer_id'))->value('business_id');
     }
 }

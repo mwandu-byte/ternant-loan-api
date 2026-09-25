@@ -26,6 +26,12 @@ final class AccessScope
 {
     public const PERMISSION = 'data.view-all';
 
+    /**
+     * Roles that carry platform-wide powers (e.g. editing the global role
+     * and permission definitions). Only platform users may grant them.
+     */
+    public const PLATFORM_ROLES = ['admin'];
+
     public static function isUnrestricted(User $user): bool
     {
         return $user->can(self::PERMISSION);

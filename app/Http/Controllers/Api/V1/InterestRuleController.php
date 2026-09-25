@@ -15,11 +15,16 @@ use Illuminate\Http\JsonResponse;
 /**
  * Manage interest rate rules.
  *
- * Interest rules are the default, global lending rate brackets applied by
+ * Interest rules are the business's default lending rate brackets applied by
  * principal amount. Multiple active rules may exist but their amount
  * ranges must never overlap, so a given loan amount always resolves to
  * exactly one rate. A specific loan may separately override the resolved
  * rate via its own discount fields without ever modifying these rules.
+ *
+ * Loan configuration is per business. A business user sees and edits
+ * only their own business's configuration; a platform user manages the
+ * platform defaults that are copied into every new business. Another
+ * business's rows are reported as not found (404).
  *
  * All endpoints return the application's standard envelope:
  * `{"success": bool, "message": string, "data"?: object|null, "errors"?: object}`.

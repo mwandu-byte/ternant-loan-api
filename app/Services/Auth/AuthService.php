@@ -61,6 +61,18 @@ class AuthService
         return $this->issueTokens($refreshToken->user);
     }
 
+    /**
+     * Signs in a user whose identity was established some other way (a
+     * just-completed registration) and issues the same token pair as
+     * login().
+     *
+     * @return array{access_token: string, refresh_token: string, token_type: string, expires_in: int, user: User}
+     */
+    public function issueTokensFor(User $user): array
+    {
+        return $this->issueTokens($user);
+    }
+
     public function logout(User $user): void
     {
         RefreshToken::where('user_id', $user->id)

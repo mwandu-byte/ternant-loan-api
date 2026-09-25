@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Requests\Api\V1\Business\StoreBusinessRequest;
 use App\Http\Requests\Api\V1\Business\UpdateBusinessRequest;
+use App\Http\Requests\Api\V1\Business\UpdateCurrentBusinessRequest;
 use App\Http\Resources\Api\V1\BusinessResource;
 use App\Http\Responses\ApiResponse;
 use App\Models\Business;
@@ -15,10 +16,13 @@ use Illuminate\Http\Request;
 /**
  * Manage businesses (tenants).
  *
- * Creating, listing and updating businesses — including the
- * `requires_application_fee` and `requires_guarantor` rules — is limited to
- * platform users (users not attached to any business). A business user can
- * only read their own business through `GET /business`.
+ * Creating, listing, suspending and updating arbitrary businesses is
+ * limited to platform users (users not attached to any business). A
+ * business user works only with their own business through `/business`:
+ * anyone in it can read it, and holders of `business-settings.update` (the
+ * business owner) can edit its details and its `requires_application_fee` /
+ * `requires_guarantor` rules. Businesses usually come from self-registration
+ * (`POST /auth/register`).
  */
 #[Group('Businesses')]
 class BusinessController extends Controller
@@ -85,6 +89,29 @@ class BusinessController extends Controller
         }
 
         return ApiResponse::success(new BusinessResource($business), 'Business retrieved successfully');
+    }
+
+    /**
+     * Update the authenticated user's own business
+     *
+     * Lets the business owner edit their business's details and loan
+     * requirements (`requires_application_fee`, `requires_guarantor`). The
+     * business `status` cannot be changed here; suspension is a platform
+     * decision. Requires `business-settings.update`. Returns 404 for platform
+     * users, who have no business of their own.
+     */
+    public function updateCurrent(UpdateCurrentBusinessRequest $request): JsonResponse
+    {
+        $business = $request->user()->business;
+
+        if ($business === null) {
+            return ApiResponse::error('The requested resource was not found.', 404);
+        }
+
+        return ApiResponse::success(
+            new BusinessResource($this->businessService->update($business, $request->validated())),
+            'Business updated successfully',
+        );
     }
 
     /**

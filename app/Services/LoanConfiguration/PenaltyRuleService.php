@@ -11,7 +11,7 @@ class PenaltyRuleService
 {
     public function list(): Collection
     {
-        return PenaltyRule::query()->orderBy('minimum_amount')->get();
+        return PenaltyRule::query()->forUser(auth()->user())->orderBy('minimum_amount')->get();
     }
 
     /**
@@ -55,7 +55,7 @@ class PenaltyRuleService
     }
 
     /**
-     * Resolves the active penalty rule covering the loan's ORIGINAL
+     * Resolves the loan business's active penalty rule covering the loan's ORIGINAL
      * principal amount — never outstanding balance, remaining
      * installment amount, or interest — per the approved business rule.
      * Called only from the penalty accrual path (never from loan
@@ -64,9 +64,10 @@ class PenaltyRuleService
      * unmatched principal simply means that schedule's accrual is
      * skipped for this run, not that the whole batch fails.
      */
-    public function resolveApplicableRule(float $principal): ?PenaltyRule
+    public function resolveApplicableRule(float $principal, ?int $businessId): ?PenaltyRule
     {
         return PenaltyRule::query()
+            ->forBusiness($businessId)
             ->active()
             ->where('minimum_amount', '<=', $principal)
             ->where(function ($query) use ($principal) {
@@ -87,7 +88,7 @@ class PenaltyRuleService
             return;
         }
 
-        $query = PenaltyRule::query()->active();
+        $query = PenaltyRule::query()->forUser(auth()->user())->active();
 
         if ($ignoreId !== null) {
             $query->where('id', '!=', $ignoreId);

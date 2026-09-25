@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Support\BusinessOwnerRole;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -12,6 +13,9 @@ class RoleSeeder extends Seeder
     {
         $admin = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'api']);
         $admin->syncPermissions(Permission::where('guard_name', 'api')->get());
+
+        $owner = Role::firstOrCreate(['name' => BusinessOwnerRole::NAME, 'guard_name' => 'api']);
+        $owner->syncPermissions(BusinessOwnerRole::PERMISSIONS);
 
         $lender = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'api']);
         $lender->syncPermissions($this->lenderPermissions());

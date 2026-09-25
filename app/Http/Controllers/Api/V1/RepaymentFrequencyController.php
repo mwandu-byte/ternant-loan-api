@@ -17,7 +17,12 @@ use Illuminate\Http\JsonResponse;
  *
  * A repayment frequency defines how often a loan's installments fall due
  * (e.g. monthly, every 2 months). Only active frequencies may be selected
- * when a loan is created.
+ * when a loan is created. Codes are unique within a business.
+ *
+ * Loan configuration is per business. A business user sees and edits
+ * only their own business's configuration; a platform user manages the
+ * platform defaults that are copied into every new business. Another
+ * business's rows are reported as not found (404).
  *
  * All endpoints return the application's standard envelope:
  * `{"success": bool, "message": string, "data"?: object|null, "errors"?: object}`.

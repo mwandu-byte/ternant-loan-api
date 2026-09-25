@@ -1,8 +1,10 @@
-# Loan Management System API
+# CareSmart Loans API
 
-REST API (Laravel 13, JWT auth, Spatie roles/permissions) for a mobile loan
-management application. API docs: `/docs/api` (Scalar UI) and `/docs/api.json`
-(OpenAPI spec).
+REST API (Laravel 13, JWT auth, Spatie roles/permissions) behind **CareSmart
+Loans** (web) and the **SLoan** mobile app, by CareSmart Technologies. Brand
+artwork (logo masters and the asset generator) lives in `branding/`.
+
+API docs: `/docs/api` (Scalar UI) and `/docs/api.json` (OpenAPI spec).
 
 ## Running locally
 

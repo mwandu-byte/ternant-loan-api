@@ -61,6 +61,8 @@ class UserService
             'business_id' => auth()->user()->business_id ?? ($data['business_id'] ?? null),
         ];
 
+        $this->assertAssignableRoles($data['roles'] ?? []);
+
         try {
             $user = User::create($payload);
         } catch (QueryException $e) {
@@ -114,6 +116,7 @@ class UserService
      */
     public function assignRoles(User $user, array $roleNames): User
     {
+        $this->assertAssignableRoles($roleNames);
         $this->guardRolesUpdateSurvivesForUser($user, $roleNames);
 
         $user->syncRoles($roleNames);
@@ -123,6 +126,8 @@ class UserService
 
     public function addRole(User $user, string $roleName): User
     {
+        $this->assertAssignableRoles([$roleName], 'role');
+
         $user->assignRole($roleName);
 
         return $user->load('roles');
@@ -148,6 +153,27 @@ class UserService
     public function effectivePermissions(User $user): Collection
     {
         return $user->getAllPermissions()->pluck('name');
+    }
+
+    /**
+     * Roles are shared by every business, so a business user granting a
+     * platform role would hand out powers over all tenants.
+     *
+     * @param  array<int, string>  $roleNames
+     */
+    private function assertAssignableRoles(array $roleNames, string $field = 'roles'): void
+    {
+        $actingUser = auth()->user();
+
+        if ($actingUser === null || AccessScope::isPlatformUser($actingUser)) {
+            return;
+        }
+
+        if (array_intersect($roleNames, AccessScope::PLATFORM_ROLES) !== []) {
+            throw ValidationException::withMessages([
+                $field => ['Platform roles can only be assigned by platform administrators.'],
+            ]);
+        }
     }
 
     /**

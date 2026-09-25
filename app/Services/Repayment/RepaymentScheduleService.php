@@ -69,7 +69,7 @@ class RepaymentScheduleService
             throw new RepaymentScheduleAlreadyExistsException;
         }
 
-        $frequency = RepaymentFrequency::where('code', $loan->repayment_frequency)->firstOrFail();
+        $frequency = RepaymentFrequency::forBusiness($loan->business_id)->where('code', $loan->repayment_frequency)->firstOrFail();
         $term = (int) $loan->repayment_term;
 
         return DB::transaction(function () use ($loan, $frequency, $term) {
