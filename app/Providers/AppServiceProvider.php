@@ -107,6 +107,11 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute((int) config('rate_limits.register'))->by($request->ip());
         });
 
+        RateLimiter::for('delete-account', function (Request $request) {
+            return Limit::perMinute((int) config('rate_limits.delete_account'))
+                ->by($request->user()?->id ?: $request->ip());
+        });
+
         RateLimiter::for('change-password', function (Request $request) {
             return Limit::perMinute((int) config('rate_limits.change_password'))
                 ->by($request->user()?->id ?: $request->ip());
