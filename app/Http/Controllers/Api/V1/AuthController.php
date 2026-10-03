@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Requests\Api\V1\Auth\RegisterBusinessRequest;
 use App\Http\Requests\Api\V1\ChangePasswordRequest;
+use App\Http\Requests\Api\V1\DeleteAccountRequest;
 use App\Http\Requests\Api\V1\ForgotPasswordRequest;
 use App\Http\Requests\Api\V1\LoginRequest;
 use App\Http\Requests\Api\V1\RefreshTokenRequest;
@@ -11,6 +12,7 @@ use App\Http\Requests\Api\V1\ResetPasswordRequest;
 use App\Http\Resources\Api\V1\BusinessResource;
 use App\Http\Responses\ApiResponse;
 use App\Models\User;
+use App\Services\Auth\AccountDeletionService;
 use App\Services\Auth\AuthService;
 use App\Services\Auth\BusinessRegistrationService;
 use App\Services\Auth\ChangePasswordService;
@@ -52,6 +54,7 @@ class AuthController extends Controller
         private readonly ResetPasswordService $resetPasswordService,
         private readonly ChangePasswordService $changePasswordService,
         private readonly BusinessRegistrationService $businessRegistrationService,
+        private readonly AccountDeletionService $accountDeletionService,
     ) {
         //
     }
@@ -426,6 +429,72 @@ class AuthController extends Controller
         );
 
         return ApiResponse::success(null, 'Password changed successfully.');
+    }
+
+    /**
+     * Delete my account
+     *
+     * Permanently deletes the authenticated user's account, confirmed with
+     * their current password. It takes effect immediately and cannot be
+     * undone:
+     *
+     * - the user's personal data (name, email, phone) is erased and the
+     *   account can never be signed in to again; their roles are removed
+     * - every session is ended: refresh tokens are revoked and the access
+     *   token used for this request stops working
+     * - loans, payments and other financial records the user created are
+     *   **kept** (lending records must be retained), but no longer point to
+     *   an identifiable person
+     *
+     * **Business owners** may also send `include_business: true` to close
+     * their business: it is suspended (nobody can sign in to it any more),
+     * its contact details are removed, and the personal details of its
+     * customers and guarantors are anonymized, with customer photos deleted.
+     * Loan and payment records are kept. Anyone else sending it gets 422.
+     *
+     * The last enabled user able to manage roles (`roles.update`) cannot
+     * delete themselves (409), so the platform is never left without one.
+     *
+     * Requires `Authorization: Bearer {access_token}`.
+     */
+    #[Response(200, description: 'Account deleted.', type: self::NULL_DATA_SCHEMA, examples: [[
+        'success' => true,
+        'message' => 'Your account has been deleted.',
+        'data' => null,
+    ]])]
+    #[Response(401, description: 'Missing, invalid, or expired access token.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[
+        'success' => false,
+        'message' => 'Unauthenticated',
+    ]])]
+    #[Response(409, description: 'This is the last enabled user who can manage roles.', type: self::UNAUTHENTICATED_SCHEMA, examples: [[
+        'success' => false,
+        'message' => 'This action would leave no enabled user able to manage roles. Assign the roles.update permission to another user first.',
+    ]])]
+    #[Response(422, description: 'Wrong password, or include_business sent by someone who is not the business owner.', type: self::VALIDATION_ERROR_SCHEMA, examples: [
+        [
+            'success' => false,
+            'message' => 'The given data was invalid.',
+            'errors' => ['password' => ['The password is incorrect.']],
+        ],
+        [
+            'success' => false,
+            'message' => 'The given data was invalid.',
+            'errors' => ['include_business' => ['Only the business owner can close the business.']],
+        ],
+    ])]
+    #[Response(429, description: 'Too many requests from this user.', type: self::RATE_LIMITED_SCHEMA, examples: [[
+        'success' => false,
+        'message' => 'Too many requests. Please try again later.',
+    ]])]
+    public function deleteAccount(DeleteAccountRequest $request): JsonResponse
+    {
+        $this->accountDeletionService->delete(
+            $request->user(),
+            $request->validated('password'),
+            $request->boolean('include_business'),
+        );
+
+        return ApiResponse::success(null, 'Your account has been deleted.');
     }
 
     /**

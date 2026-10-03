@@ -19,6 +19,10 @@ return [
 
     'change_password' => (int) env('RATE_LIMIT_CHANGE_PASSWORD', 5),
 
+    // Account deletion re-checks the password, so it is limited like the
+    // other password-confirming endpoints.
+    'delete_account' => (int) env('RATE_LIMIT_DELETE_ACCOUNT', 5),
+
     /*
     |--------------------------------------------------------------------------
     | Self-Registration Rate Limit
